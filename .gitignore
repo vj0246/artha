@@ -15,7 +15,8 @@ dist/
 .env.*
 
 # Data zones (never in git; keep outside OneDrive via ARTHA_DATA_DIR)
-data/
+# Root-anchored: must not match src/artha/data/
+/data/
 *.parquet
 *.duckdb
 
