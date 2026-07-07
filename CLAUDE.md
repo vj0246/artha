@@ -1,10 +1,12 @@
 # Artha — Working Rules for Claude Code
 
 ## Phase tracker (update every session)
-**Current phase: P1 (data layer) — not started. P0 gate passed 2026-07-08
-(CI run #1 green: https://github.com/vj0246/artha/actions).**
+**Current phase: P1 (data layer), slice P1a done 2026-07-08: bhavcopy ingest
+(dual-format parsers + parity test, raw zone, backfill script; ADR 0002).
+Next: P1b corporate actions + adjustment; P1c constituents + PIT universe + QA.
+P0 gate passed 2026-07-08.**
 
-- [x] P0 scaffold · [ ] P1 data layer · [ ] P2 vectorized backtest + baselines
+- [x] P0 scaffold · [~] P1 data layer · [ ] P2 vectorized backtest + baselines
 - [ ] P3 ML alpha · [ ] P4 portfolio + risk · [ ] P5 event engine
 - [ ] P6 live paper · [ ] P7 real capital
 
@@ -34,9 +36,9 @@ pytest + hypothesis, ruff (lint + format), mypy --strict, GitHub Actions.
 
 ## Environment facts
 - Windows 11. Repo lives inside OneDrive (`Personal Projects\Quant\artha`).
-  Consequence: `data/` must NEVER live in the repo. When P1 starts, set
-  `ARTHA_DATA_DIR` to a non-OneDrive path (e.g. `C:\quant-data`). GitHub is the
-  backup of record, not OneDrive.
+  Consequence: bulk data never lives in the repo. Data root defaults to
+  `~\quant-data` (outside OneDrive), override via `ARTHA_DATA_DIR`; raw zone
+  is immutable with a sha256 manifest. GitHub is the backup of record.
 - GPU: RTX 2050, 4 GB VRAM. Transformer stretch (plan §15.2) limited to small
   models with small batches; LightGBM primary is CPU-bound and unaffected.
 - Broker: none yet. Zerodha Kite planned at P6 (verify-list items first).
