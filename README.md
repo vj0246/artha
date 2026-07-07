@@ -1,5 +1,7 @@
 # Artha
 
+[![ci](https://github.com/vj0246/artha/actions/workflows/ci.yml/badge.svg)](https://github.com/vj0246/artha/actions/workflows/ci.yml)
+
 Cross-sectional ML trading system for NSE cash equities: survivorship-bias-free
 point-in-time data layer built from primary NSE sources, LightGBM alpha validated
 with Lopez de Prado-grade statistics (purged CV, deflated Sharpe, PBO), a custom

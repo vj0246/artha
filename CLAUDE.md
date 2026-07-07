@@ -1,9 +1,10 @@
 # Artha — Working Rules for Claude Code
 
 ## Phase tracker (update every session)
-**Current phase: P0 (repo scaffold) — gate: CI green on GitHub Actions. Status: in progress.**
+**Current phase: P1 (data layer) — not started. P0 gate passed 2026-07-08
+(CI run #1 green: https://github.com/vj0246/artha/actions).**
 
-- [ ] P0 scaffold · [ ] P1 data layer · [ ] P2 vectorized backtest + baselines
+- [x] P0 scaffold · [ ] P1 data layer · [ ] P2 vectorized backtest + baselines
 - [ ] P3 ML alpha · [ ] P4 portfolio + risk · [ ] P5 event engine
 - [ ] P6 live paper · [ ] P7 real capital
 
