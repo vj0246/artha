@@ -44,6 +44,21 @@ def nse_client() -> httpx.Client:
     return httpx.Client(headers=POLITE_HEADERS, timeout=DEFAULT_TIMEOUT_S, follow_redirects=True)
 
 
+def nse_api_client() -> httpx.Client:
+    """Client for www.nseindia.com/api/* endpoints, which require the session
+    cookies handed out by the homepage (the "cookie dance")."""
+    client = httpx.Client(
+        headers={**POLITE_HEADERS, "Accept": "application/json, text/plain, */*"},
+        timeout=DEFAULT_TIMEOUT_S,
+        follow_redirects=True,
+    )
+    resp = client.get("https://www.nseindia.com/")
+    if resp.status_code != 200:
+        client.close()
+        raise NseDownloadError("https://www.nseindia.com/", f"cookie dance HTTP {resp.status_code}")
+    return client
+
+
 def fetch(url: str, *, client: httpx.Client, retries: int = 3, backoff_s: float = 2.0) -> bytes:
     """GET with retries on transient failures. Raises NseNotFoundError on 404."""
     last_detail = "no attempts made"

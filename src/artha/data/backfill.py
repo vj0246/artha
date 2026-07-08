@@ -50,6 +50,8 @@ def run_backfill(
     relpath_fn: Callable[[date], str],
     download_fn: Callable[..., Path],
     settings: Settings,
+    *,
+    client_factory: Callable[[], httpx.Client] = nse_client,
 ) -> tuple[BackfillResult, Path]:
     """Download ``days`` via ``download_fn(d, client=..., store=...)``; write a JSON report.
 
@@ -60,7 +62,7 @@ def run_backfill(
     result = BackfillResult()
 
     print(f"{name} backfill: {len(days)} days, raw zone {settings.raw_dir}", flush=True)
-    with nse_client() as client:
+    with client_factory() as client:
         for i, d in enumerate(days, 1):
             if store.exists(relpath_fn(d)):
                 result.skipped += 1
