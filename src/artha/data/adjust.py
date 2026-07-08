@@ -1,19 +1,21 @@
-"""Corporate-action adjustment from exchange-adjusted previous closes.
+"""Corporate-action adjustment: implied factors pre-UDiFF, declared after.
 
-NSE adjusts the base price (bhavcopy PREVCLOSE) on the ex-date of every
-price-affecting corporate action: splits, bonuses, face-value changes,
-rights, special dividends. Regular dividends do not touch it. Therefore
+In the old bhavcopy format NSE adjusted the base price (PREVCLOSE) on the
+ex-date of every price-affecting corporate action, so
 
     factor(ex_date) = prev_close(ex_date) / close(previous traded day)
 
-is the exchange's own adjustment factor, available from primary data for the
-full history with no separate CA feed. The declared corporate-actions API is
-used as a cross-check (P1c), not as the source of truth. See ADR 0003.
+is the exchange's own adjustment factor (ADR 0003). The UDiFF format stopped
+doing this (PrvsClsgPric is the raw prior close), so from the cutover the
+factors come from the declared CA feed instead, parsed into ratios for
+bonuses and face-value splits (ADR 0005). ``combined_ca_events`` merges the
+two eras; each source cross-checks the other in the overlap.
 
 Backward adjustment: prices strictly before an ex-date are multiplied by the
 product of all later factors; volumes are divided by it.
 """
 
+from datetime import date
 from typing import Final
 
 import polars as pl
@@ -30,13 +32,36 @@ ABS_TOLERANCE: Final = 0.02
 _MAX_RENAME_CHAIN: Final = 6
 
 
-def equity_panel(bhav: pl.DataFrame, symbol_changes: pl.DataFrame) -> pl.DataFrame:
-    """One row per (canon_symbol, trade_date): equity series only, renames unified.
+def canonicalize_symbols(
+    frame: pl.DataFrame, symbol_changes: pl.DataFrame, *, date_col: str
+) -> pl.DataFrame:
+    """Rewrite ``canon_symbol`` to each row's terminal ticker, date-aware.
 
-    ``canon_symbol`` maps every historical ticker to its terminal name by
-    replaying symbolchange.csv date-aware (a rename at date d applies to rows
-    strictly before d; symbols reused later by other companies are untouched).
+    A rename at date d applies to rows strictly before d, so symbols later
+    reused by other companies are untouched. Handles chains (A -> B -> C).
     """
+    known = set(frame["canon_symbol"].unique().to_list()) | set(
+        symbol_changes["new_symbol"].to_list()
+    )
+    relevant = symbol_changes.filter(pl.col("old_symbol").is_in(sorted(known))).sort("change_date")
+    for _ in range(_MAX_RENAME_CHAIN):
+        before = frame["canon_symbol"]
+        for old, new, change_date in relevant.select(
+            "old_symbol", "new_symbol", "change_date"
+        ).iter_rows():
+            frame = frame.with_columns(
+                pl.when((pl.col("canon_symbol") == old) & (pl.col(date_col) < change_date))
+                .then(pl.lit(new))
+                .otherwise(pl.col("canon_symbol"))
+                .alias("canon_symbol")
+            )
+        if (frame["canon_symbol"] == before).all():
+            return frame
+    raise ValueError(f"symbol rename chains did not converge in {_MAX_RENAME_CHAIN} passes")
+
+
+def equity_panel(bhav: pl.DataFrame, symbol_changes: pl.DataFrame) -> pl.DataFrame:
+    """One row per (canon_symbol, trade_date): equity series only, renames unified."""
     panel = (
         bhav.filter(pl.col("series").is_in(EQUITY_SERIES))
         .with_columns(
@@ -46,26 +71,7 @@ def equity_panel(bhav: pl.DataFrame, symbol_changes: pl.DataFrame) -> pl.DataFra
         .sort("symbol", "trade_date", "_prio")
         .unique(subset=["symbol", "trade_date"], keep="first")
     )
-
-    known = set(panel["canon_symbol"].unique().to_list()) | set(
-        symbol_changes["new_symbol"].to_list()
-    )
-    relevant = symbol_changes.filter(pl.col("old_symbol").is_in(sorted(known))).sort("change_date")
-    for _ in range(_MAX_RENAME_CHAIN):
-        before = panel["canon_symbol"]
-        for old, new, change_date in relevant.select(
-            "old_symbol", "new_symbol", "change_date"
-        ).iter_rows():
-            panel = panel.with_columns(
-                pl.when((pl.col("canon_symbol") == old) & (pl.col("trade_date") < change_date))
-                .then(pl.lit(new))
-                .otherwise(pl.col("canon_symbol"))
-                .alias("canon_symbol")
-            )
-        if (panel["canon_symbol"] == before).all():
-            break
-    else:
-        raise ValueError(f"symbol rename chains did not converge in {_MAX_RENAME_CHAIN} passes")
+    panel = canonicalize_symbols(panel, symbol_changes, date_col="trade_date")
     return panel.drop("_prio").sort("canon_symbol", "trade_date")
 
 
@@ -95,6 +101,35 @@ def implied_ca_events(panel: pl.DataFrame) -> pl.DataFrame:
         )
         .sort("canon_symbol", "ex_date")
     )
+
+
+def combined_ca_events(
+    implied: pl.DataFrame,
+    declared: pl.DataFrame,
+    symbol_changes: pl.DataFrame,
+    *,
+    implied_until: date,
+) -> pl.DataFrame:
+    """Merge event sources at the UDiFF boundary (ADR 0005).
+
+    NSE stopped adjusting the bhavcopy base price with the UDiFF format, so
+    implied factors are only trusted for ex-dates before ``implied_until``;
+    later ex-dates take factors parsed from the declared CA feed. Declared
+    symbols are canonicalized date-aware before the merge.
+
+    Returns (canon_symbol, ex_date, factor, source).
+    """
+    pre = implied.filter(pl.col("ex_date") < implied_until).select(
+        "canon_symbol", "ex_date", "factor", pl.lit("implied").alias("source")
+    )
+    post = (
+        canonicalize_symbols(
+            declared.rename({"symbol": "canon_symbol"}), symbol_changes, date_col="ex_date"
+        )
+        .filter(pl.col("ex_date") >= implied_until)
+        .select("canon_symbol", "ex_date", "factor", pl.lit("declared").alias("source"))
+    )
+    return pl.concat([pre, post]).sort("canon_symbol", "ex_date")
 
 
 def apply_adjustment(panel: pl.DataFrame, events: pl.DataFrame) -> pl.DataFrame:

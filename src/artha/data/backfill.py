@@ -22,12 +22,14 @@ POLITE_DELAY_S = 0.6
 PROGRESS_EVERY = 100
 
 
-def weekdays(start: date, end: date) -> list[date]:
+def calendar_days(start: date, end: date) -> list[date]:
+    """Every calendar day, weekends included: NSE holds special Saturday
+    sessions (budget days, DR drills) and muhurat sessions on weekends, and
+    skipping them creates phantom base-price events. Holidays just 404."""
     days = []
     d = start
     while d <= end:
-        if d.weekday() < 5:
-            days.append(d)
+        days.append(d)
         d += timedelta(days=1)
     return days
 

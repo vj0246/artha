@@ -12,7 +12,7 @@ import sys
 from datetime import date
 
 from artha.config import load_settings
-from artha.data.backfill import run_backfill, weekdays
+from artha.data.backfill import calendar_days, run_backfill
 from artha.data.ingest.indices import (
     INDEX_CLOSE_START,
     download_index_close,
@@ -29,13 +29,13 @@ def main() -> int:
     start = max(args.start, INDEX_CLOSE_START)
     result, _ = run_backfill(
         "indexclose",
-        weekdays(start, args.end),
+        calendar_days(start, args.end),
         index_close_relpath,
         download_index_close,
         load_settings(),
     )
     if not result.ok:
-        print("FAILURES PRESENT — rerun after diagnosing; raw zone is idempotent.")
+        print("FAILURES PRESENT - rerun after diagnosing; raw zone is idempotent.")
         return 1
     return 0
 

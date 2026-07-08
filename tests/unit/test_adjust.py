@@ -4,7 +4,12 @@ from datetime import date
 
 import polars as pl
 
-from artha.data.adjust import apply_adjustment, equity_panel, implied_ca_events
+from artha.data.adjust import (
+    apply_adjustment,
+    combined_ca_events,
+    equity_panel,
+    implied_ca_events,
+)
 
 NO_CHANGES = pl.DataFrame(
     {
@@ -175,3 +180,58 @@ class TestApplyAdjustment:
         adjusted = apply_adjustment(panel, implied_ca_events(panel))
         assert adjusted["cum_adj_factor"].to_list() == [1.0, 1.0]
         assert adjusted["adj_close"].to_list() == adjusted["close"].to_list()
+
+
+class TestCombinedEvents:
+    CUTOVER = date(2024, 7, 1)
+
+    def test_era_split_and_declared_canonicalization(self) -> None:
+        implied = pl.DataFrame(
+            {
+                "canon_symbol": ["A", "A"],
+                "ex_date": [date(2015, 3, 2), date(2024, 10, 28)],  # post-cutover: phantom
+                "factor": [0.5, 0.98],
+            }
+        )
+        declared = pl.DataFrame(
+            {
+                # OLDCO renamed to A in 2020, so this 2015 event belongs to A;
+                # both declared events are pre-cutover except the bonus
+                "symbol": ["OLDCO", "A", "A"],
+                "ex_date": [date(2015, 3, 2), date(2015, 3, 2), date(2024, 10, 28)],
+                "factor": [0.5, 0.5, 0.5],
+            }
+        )
+        changes = mk_changes([("OLDCO", "A", date(2020, 1, 1))])
+        events = combined_ca_events(implied, declared, changes, implied_until=self.CUTOVER)
+        # pre-cutover: only the implied event; post-cutover: only the declared one
+        assert events.select("canon_symbol", "ex_date", "factor", "source").to_dicts() == [
+            {
+                "canon_symbol": "A",
+                "ex_date": date(2015, 3, 2),
+                "factor": 0.5,
+                "source": "implied",
+            },
+            {
+                "canon_symbol": "A",
+                "ex_date": date(2024, 10, 28),
+                "factor": 0.5,
+                "source": "declared",
+            },
+        ]
+
+    def test_adjustment_uses_declared_after_cutover(self) -> None:
+        # UDiFF era: prev_close is NOT base-adjusted, so implied finds nothing
+        bhav = mk_bhav(
+            [
+                (date(2024, 10, 24), "R", "EQ", 102.0, 100.0, 100),
+                (date(2024, 10, 28), "R", "EQ", 51.0, 102.0, 200),  # bonus, raw prev_close
+            ]
+        )
+        panel = equity_panel(bhav, NO_CHANGES)
+        implied = implied_ca_events(panel).filter(pl.col("ex_date") < self.CUTOVER)
+        declared = pl.DataFrame({"symbol": ["R"], "ex_date": [date(2024, 10, 28)], "factor": [0.5]})
+        events = combined_ca_events(implied, declared, NO_CHANGES, implied_until=self.CUTOVER)
+        adjusted = apply_adjustment(panel, events).sort("trade_date")
+        assert adjusted["cum_adj_factor"].to_list() == [0.5, 1.0]
+        assert adjusted["adj_close"].to_list() == [51.0, 51.0]
