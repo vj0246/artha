@@ -182,9 +182,13 @@ retries with backoff, and fails loudly rather than silently skipping days.
 
 ### 5.2 Point-in-time universe
 
-Reconstruct NIFTY 500 membership by replaying constituent change reports. Investable universe on
-date t: members on t, median 63-day traded value above threshold (start Rs 5 cr/day), price above
-Rs 20, listed at least 126 trading days. All filters use only data available at t.
+Investable universe on date t, using only data available at t: median 63-day traded value above
+threshold (start Rs 5 cr/day) and within the top 500 by that measure, price above Rs 20, listed
+at least 126 trading days. Amended per ADR 0004 (2026-07-08): no scriptable primary source for
+historical NIFTY 500 membership exists, and the survivorship-free bhavcopy panel makes a
+filter-defined universe survivorship-free by construction. Constituent snapshots are stored
+forward from 2026; index-membership replay becomes an optional refinement if a change-report
+source is secured.
 
 ### 5.3 Corporate-action adjustment
 
