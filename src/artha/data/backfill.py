@@ -62,7 +62,10 @@ def run_backfill(
     result = BackfillResult()
 
     print(f"{name} backfill: {len(days)} days, raw zone {settings.raw_dir}", flush=True)
-    with client_factory() as client:
+    # the factory may have already used the client (cookie dance), so a
+    # `with` block would raise "Cannot open a client instance more than once"
+    client = client_factory()
+    try:
         for i, d in enumerate(days, 1):
             if store.exists(relpath_fn(d)):
                 result.skipped += 1
@@ -76,6 +79,8 @@ def run_backfill(
                     f"failed={len(result.failed)}",
                     flush=True,
                 )
+    finally:
+        client.close()
 
     report = {
         "run_at": datetime.now(UTC).isoformat(),

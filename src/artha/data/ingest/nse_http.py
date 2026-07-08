@@ -46,17 +46,37 @@ def nse_client() -> httpx.Client:
 
 def nse_api_client() -> httpx.Client:
     """Client for www.nseindia.com/api/* endpoints, which require the session
-    cookies handed out by the homepage (the "cookie dance")."""
+    cookies handed out by the homepage (the "cookie dance").
+
+    The homepage request must look like a browser page load (HTML Accept
+    header); the JSON Accept header goes on the API calls only.
+    """
     client = httpx.Client(
         headers={**POLITE_HEADERS, "Accept": "application/json, text/plain, */*"},
         timeout=DEFAULT_TIMEOUT_S,
         follow_redirects=True,
     )
-    resp = client.get("https://www.nseindia.com/")
-    if resp.status_code != 200:
-        client.close()
-        raise NseDownloadError("https://www.nseindia.com/", f"cookie dance HTTP {resp.status_code}")
-    return client
+    last_detail = "no attempts made"
+    for attempt in range(3):
+        try:
+            resp = client.get(
+                "https://www.nseindia.com/",
+                headers={
+                    "Accept": (
+                        "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,"
+                        "image/webp,*/*;q=0.8"
+                    )
+                },
+            )
+        except httpx.HTTPError as exc:
+            last_detail = f"transport error: {exc}"
+        else:
+            if resp.status_code == 200:
+                return client
+            last_detail = f"HTTP {resp.status_code}"
+        time.sleep(2.0 * 2**attempt)
+    client.close()
+    raise NseDownloadError("https://www.nseindia.com/", f"cookie dance {last_detail}")
 
 
 def fetch(url: str, *, client: httpx.Client, retries: int = 3, backoff_s: float = 2.0) -> bytes:
