@@ -18,8 +18,9 @@ universe construction filters later.
 """
 
 import io
+import re
 import zipfile
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Final
 
@@ -59,6 +60,18 @@ def bhavcopy_filename(trade_date: date) -> str:
         return f"BhavCopy_NSE_CM_0_0_0_{trade_date:%Y%m%d}_F_0000.csv.zip"
     month = f"{trade_date:%b}".upper()
     return f"cm{trade_date:%d}{month}{trade_date:%Y}bhav.csv.zip"
+
+
+_OLD_NAME_RE: Final = re.compile(r"^cm(\d{2}[A-Z]{3}\d{4})bhav\.csv\.zip$")
+_UDIFF_NAME_RE: Final = re.compile(r"^BhavCopy_NSE_CM_0_0_0_(\d{8})_F_0000\.csv\.zip$")
+
+
+def bhavcopy_date_from_filename(name: str) -> date:
+    if m := _UDIFF_NAME_RE.match(name):
+        return datetime.strptime(m.group(1), "%Y%m%d").date()
+    if m := _OLD_NAME_RE.match(name):
+        return datetime.strptime(m.group(1).title(), "%d%b%Y").date()
+    raise BhavcopyParseError(f"not a recognized bhavcopy filename: {name}")
 
 
 def bhavcopy_url(trade_date: date) -> str:
