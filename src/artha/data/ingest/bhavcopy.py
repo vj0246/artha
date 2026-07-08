@@ -145,14 +145,16 @@ def _parse_old(csv_data: bytes) -> pl.DataFrame:
     isin = (
         pl.col("ISIN").str.strip_chars() if "ISIN" in raw.columns else pl.lit(None, dtype=pl.String)
     )
+    # Day-of-month is not always zero-padded ("4-JAN-2010") and a few files
+    # carry two-digit years ("13-Jul-20" in cm13JUL2020). %Y would happily
+    # parse "20" as year 0020, so pick the format by counting year digits.
+    # parse_bhavcopy rejects nulls and wrong dates downstream.
+    ts = pl.col("TIMESTAMP").str.strip_chars().str.to_titlecase()
+    year_digits = ts.str.extract(r"(\d+)$", 1).str.len_chars()
     return raw.select(
-        # Day-of-month is not always zero-padded ("4-JAN-2010"): zfill to
-        # "04-Jan-2010" width; already-padded values are unaffected.
-        pl.col("TIMESTAMP")
-        .str.strip_chars()
-        .str.to_titlecase()
-        .str.zfill(11)
-        .str.to_date("%d-%b-%Y")
+        pl.when(year_digits == 4)
+        .then(ts.str.to_date("%d-%b-%Y", strict=False))
+        .otherwise(ts.str.to_date("%d-%b-%y", strict=False))
         .alias("trade_date"),
         pl.col("SYMBOL").str.strip_chars().alias("symbol"),
         pl.col("SERIES").str.strip_chars().alias("series"),

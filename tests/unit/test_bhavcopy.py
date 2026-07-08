@@ -66,6 +66,14 @@ class TestOldFormat:
         assert row["isin"] is None
         assert row["trades"] is None
 
+    def test_2020_variant_with_two_digit_year(self) -> None:
+        # NSE shipped "13-Jul-20" instead of "13-JUL-2020" in some files
+        df = _load("cm13JUL2020bhav.csv", date(2020, 7, 13))
+        assert df.height == 4
+        row = _reliance(df)
+        assert row["trade_date"] == date(2020, 7, 13)
+        assert row["close"] == 1935.0
+
     def test_2023_variant_with_isin_and_trades(self) -> None:
         df = _load("cm02JAN2023bhav.csv", date(2023, 1, 2))
         assert df.height == 6
