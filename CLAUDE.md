@@ -1,13 +1,16 @@
 # Artha — Working Rules for Claude Code
 
 ## Phase tracker (update every session)
-**Current phase: P1 (data layer). P1a done (bhavcopy ingest, ADR 0002).
-P1b code done 2026-07-08: curated Parquet zone, symbolchange ingest, implied-
-factor CA adjustment (ADR 0003) — real-data validation pending full backfill.
-Next: P1b validation on full history, then P1c constituents + PIT universe +
-QA suite. P0 gate passed 2026-07-08.**
+**P1 GATE PASSED 2026-07-09 (P0 2026-07-08). Data layer complete: 2010-2026
+bhavcopy raw zone (4,097 sessions incl. weekend specials), curated panel
+(7.1M rows, 3,623 instruments), CA adjustment from declared feed (ADR 0005 —
+implied-factor design of ADR 0003 falsified: PREVCLOSE never CA-adjusted),
+trading calendar, QA suite, PIT liquidity universe (ADR 0004), index closes
+2012+, constituent snapshots, real-data regression tests in
+tests/integration. Open: NIFTY 500 TRI source (Appendix B). Next: P2
+vectorized backtester + cost model + baselines + lookahead suite.**
 
-- [x] P0 scaffold · [~] P1 data layer · [ ] P2 vectorized backtest + baselines
+- [x] P0 scaffold · [x] P1 data layer · [ ] P2 vectorized backtest + baselines
 - [ ] P3 ML alpha · [ ] P4 portfolio + risk · [ ] P5 event engine
 - [ ] P6 live paper · [ ] P7 real capital
 
