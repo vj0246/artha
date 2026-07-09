@@ -1,44 +1,44 @@
-# ADR 0005: hybrid CA adjustment — implied pre-UDiFF, declared after
+# ADR 0005: adjustment factors from the declared CA feed (supersedes 0003)
 
-Date: 2026-07-08. Amends ADR 0003 after full-history validation falsified
-one of its assumptions.
+Date: 2026-07-08. Written after full-history validation; supersedes the
+implied-factor design of ADR 0003 and this ADR's own earlier hybrid draft.
 
-## What validation found
+## What validation established
 
-- RELIANCE Bonus 1:1 ex 2024-10-28: raw UDiFF row shows
-  `PrvsClsgPric = 2655.70` against `ClsPric = 1334.35`. NSE does NOT
-  base-price-adjust the UDiFF bhavcopy previous close. The implied-factor
-  method (ADR 0003) therefore sees nothing on post-cutover ex-dates; it
-  remains valid only for the old format (pre 2024-07-01), where the
-  known bonuses/splits do appear (verified on full history).
-- Every "small factor" implied event for RELIANCE (0.96-1.01) traced to
-  NSE weekend special sessions (2010-02-06 DR drill, 2020-02-01 and
-  2026-02-?? budget Saturdays, 2024-01-20 special session, muhurat
-  weekends): the weekday-only backfill skipped those files, so PREVCLOSE
-  referenced a close we did not have. Fix: backfills attempt every
-  calendar day; holidays 404 harmlessly.
+1. The bhavcopy previous close is the RAW prior close in BOTH formats.
+   NSE never base-price-adjusts it: INFY bonus 1:1 ex 2015-06-15 shows
+   prev_close 1975.05 (= prior close), WIPRO bonus ex 2017-06-13 shows
+   526.35, RELIANCE bonus ex 2024-10-28 (UDiFF) shows 2655.70. ADR 0003's
+   premise is empirically false; there is no implied factor in the price
+   files.
+2. The 23,640 "implied events" of the first full build were phantoms:
+   NSE weekend special sessions (budget Saturdays, muhurat, DR drills)
+   missing from a weekday-only backfill made our prior close disagree
+   with NSE's prev_close on the following Monday. Backfills now attempt
+   every calendar day; a prev_close-vs-prior-close mismatch is kept as a
+   QA warning because it detects exactly this failure mode.
 
 ## Decision
 
-`combined_ca_events` merges two factor sources at the UDiFF cutover:
+Adjustment factors come solely from the declared corporate-actions feed
+(www.nseindia.com CA API, monthly raw JSON, coverage probed back to 2005;
+ingested from 2010 to match the panel):
 
-- ex-date < 2024-07-01: implied factors from the exchange-adjusted old
-  PREVCLOSE (ADR 0003 mechanics unchanged).
-- ex-date >= 2024-07-01: factors parsed from the declared CA feed
-  (`corporates-corporateActions`, monthly raw files): "Bonus a:b" ->
-  b/(a+b), face-value split Rs x -> Rs y -> y/x. Declared symbols are
-  canonicalized date-aware before use.
+- "Bonus a:b" -> factor b / (a + b)
+- Face-value split Rs x -> Rs y -> factor y / x
+- Subject wording varies by era; the parser reads the first number after
+  the keyword and after "to". Everything else (dividends, rights, AGMs)
+  yields no factor.
+- Symbols are canonicalized date-aware; same-day factors multiply;
+  ex-dates on non-trading days snap forward to the symbol's next session.
 
-Each source cross-checks the other on the pre-cutover overlap
-(2011-2024); the review frames land in the reports dir on every build.
+## Safety nets and accepted limits
 
-## Consequences and accepted limits
-
-- Post-cutover rights issues and special dividends have no parseable
-  ratio and are NOT adjusted; the QA return-outlier scan flags any large
-  unexplained ex-date move for manual review. Pre-cutover these were
-  captured implicitly.
-- Declared feed is fetched up to the last complete month; a CA with an
-  ex-date in the current month appears only after the next backfill run.
-- If NSE resumes base-price adjustment (or the CA API dies), the cutover
-  constant is the single switch point to revisit.
+- QA return-outlier scan (|1-day adjusted return| > 30%) is the catch-all
+  for unparseable or missed CAs -- rights issues and special dividends
+  are NOT adjusted in v1 and will surface there for review.
+- QA prev_close-mismatch scan detects missing session files.
+- Declared feed fetched to the last complete month; current-month CAs
+  appear on the next backfill run.
+- Spot-checks against independent references (plan 5.3) remain the P1
+  gate for the resulting adjusted series.

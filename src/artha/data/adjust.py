@@ -1,21 +1,16 @@
-"""Corporate-action adjustment: implied factors pre-UDiFF, declared after.
+"""Corporate-action adjustment from the declared CA feed (ADR 0005).
 
-In the old bhavcopy format NSE adjusted the base price (PREVCLOSE) on the
-ex-date of every price-affecting corporate action, so
-
-    factor(ex_date) = prev_close(ex_date) / close(previous traded day)
-
-is the exchange's own adjustment factor (ADR 0003). The UDiFF format stopped
-doing this (PrvsClsgPric is the raw prior close), so from the cutover the
-factors come from the declared CA feed instead, parsed into ratios for
-bonuses and face-value splits (ADR 0005). ``combined_ca_events`` merges the
-two eras; each source cross-checks the other in the overlap.
+Full-history validation falsified ADR 0003: the bhavcopy PREVCLOSE is the
+raw prior close in BOTH formats (INFY bonus 2015, WIPRO bonus 2017, RELIANCE
+bonus 2024 all show unadjusted base prices), so no implied factor exists in
+primary price data. Factors come from the declared corporate-actions feed
+instead, parsed into ratios for bonuses and face-value splits; the QA
+return-outlier scan is the safety net for anything unparseable.
 
 Backward adjustment: prices strictly before an ex-date are multiplied by the
 product of all later factors; volumes are divided by it.
 """
 
-from datetime import date
 from typing import Final
 
 import polars as pl
@@ -23,11 +18,6 @@ import polars as pl
 # Continuous cash-equity series: normal, trade-for-trade, surveillance.
 EQUITY_SERIES: Final = ("EQ", "BE", "BZ")
 _SERIES_PRIORITY: Final = {"EQ": 0, "BE": 1, "BZ": 2}
-
-# An event needs both a relative and an absolute move of prev_close vs the
-# prior close, so paise rounding on low-priced names is not flagged.
-REL_TOLERANCE: Final = 0.005
-ABS_TOLERANCE: Final = 0.02
 
 _MAX_RENAME_CHAIN: Final = 6
 
@@ -75,61 +65,22 @@ def equity_panel(bhav: pl.DataFrame, symbol_changes: pl.DataFrame) -> pl.DataFra
     return panel.drop("_prio").sort("canon_symbol", "trade_date")
 
 
-def implied_ca_events(panel: pl.DataFrame) -> pl.DataFrame:
-    """Detect ex-dates where the exchange adjusted the base price.
+def adjustment_events(declared: pl.DataFrame, symbol_changes: pl.DataFrame) -> pl.DataFrame:
+    """Canonicalize declared factor events for the adjuster.
 
-    Returns (canon_symbol, ex_date, factor, prior_close, prev_close).
+    Input: (symbol, ex_date, factor[, subject]) from the CA feed. Symbols are
+    rewritten to their terminal ticker date-aware, then deduplicated per
+    (canon_symbol, ex_date) by multiplying factors (a bonus and a split can
+    share an ex-date).
     """
-    with_prior = (
-        panel.sort("canon_symbol", "trade_date")
-        .with_columns(pl.col("close").shift(1).over("canon_symbol").alias("prior_close"))
-        .filter(
-            pl.col("prior_close").is_not_null()
-            & (pl.col("prior_close") > 0)
-            & (pl.col("prev_close") > 0)
-        )
-    )
-    diff = (pl.col("prev_close") - pl.col("prior_close")).abs()
     return (
-        with_prior.filter((diff > ABS_TOLERANCE) & (diff > REL_TOLERANCE * pl.col("prior_close")))
-        .select(
-            "canon_symbol",
-            pl.col("trade_date").alias("ex_date"),
-            (pl.col("prev_close") / pl.col("prior_close")).alias("factor"),
-            "prior_close",
-            "prev_close",
-        )
-        .sort("canon_symbol", "ex_date")
-    )
-
-
-def combined_ca_events(
-    implied: pl.DataFrame,
-    declared: pl.DataFrame,
-    symbol_changes: pl.DataFrame,
-    *,
-    implied_until: date,
-) -> pl.DataFrame:
-    """Merge event sources at the UDiFF boundary (ADR 0005).
-
-    NSE stopped adjusting the bhavcopy base price with the UDiFF format, so
-    implied factors are only trusted for ex-dates before ``implied_until``;
-    later ex-dates take factors parsed from the declared CA feed. Declared
-    symbols are canonicalized date-aware before the merge.
-
-    Returns (canon_symbol, ex_date, factor, source).
-    """
-    pre = implied.filter(pl.col("ex_date") < implied_until).select(
-        "canon_symbol", "ex_date", "factor", pl.lit("implied").alias("source")
-    )
-    post = (
         canonicalize_symbols(
             declared.rename({"symbol": "canon_symbol"}), symbol_changes, date_col="ex_date"
         )
-        .filter(pl.col("ex_date") >= implied_until)
-        .select("canon_symbol", "ex_date", "factor", pl.lit("declared").alias("source"))
+        .group_by("canon_symbol", "ex_date")
+        .agg(pl.col("factor").product())
+        .sort("canon_symbol", "ex_date")
     )
-    return pl.concat([pre, post]).sort("canon_symbol", "ex_date")
 
 
 def apply_adjustment(panel: pl.DataFrame, events: pl.DataFrame) -> pl.DataFrame:
@@ -137,9 +88,27 @@ def apply_adjustment(panel: pl.DataFrame, events: pl.DataFrame) -> pl.DataFrame:
 
     A row's cumulative factor is the product of factors of events strictly
     after its date, so ex-date rows (already in post-CA units) are untouched.
+    Ex-dates that are not trading days snap forward to the next session of
+    that symbol; events with no later session (delisted before ex-date) drop.
     """
+    sessions = panel.select("canon_symbol", pl.col("trade_date").alias("_session_date")).sort(
+        "_session_date"
+    )
+    snapped = (
+        events.sort("ex_date")
+        .join_asof(
+            sessions,
+            left_on="ex_date",
+            right_on="_session_date",
+            by="canon_symbol",
+            strategy="forward",
+        )
+        .filter(pl.col("_session_date").is_not_null())
+        .group_by("canon_symbol", pl.col("_session_date").alias("trade_date"))
+        .agg(pl.col("factor").product())
+    )
     with_f = panel.join(
-        events.select("canon_symbol", pl.col("ex_date").alias("trade_date"), "factor"),
+        snapped,
         on=["canon_symbol", "trade_date"],
         how="left",
     ).with_columns(pl.col("factor").fill_null(1.0))

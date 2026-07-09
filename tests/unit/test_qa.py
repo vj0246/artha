@@ -85,6 +85,31 @@ def test_thin_date_warns() -> None:
     assert thin["trade_date"].to_list() == [date(2024, 1, 8)]
 
 
+def test_prev_close_mismatch_flags_missing_session() -> None:
+    # NSE prev_close references a session absent from the panel (e.g. a
+    # weekend special session the backfill missed)
+    rows = [
+        {"trade_date": date(2024, 1, 5), "close": 100.0, "adj_close": 100.0},
+        {
+            "trade_date": date(2024, 1, 8),
+            "open": 102.5,
+            "high": 104.0,
+            "low": 102.0,
+            "close": 103.0,
+            "adj_close": 103.0,
+            "prev_close": 102.0,  # Saturday close we do not have
+        },
+    ]
+    report = run_qa(mk_panel(rows))
+    assert report.ok
+    mm = report.warnings["prev_close_mismatches"]
+    assert mm.height == 1
+    row = mm.row(0, named=True)
+    assert row["trade_date"] == date(2024, 1, 8)
+    assert row["prior_close"] == 100.0
+    assert row["prev_close"] == 102.0
+
+
 def test_summary_shape() -> None:
     report = QaReport(errors={"x": 2}, warnings={"y": pl.DataFrame({"a": [1, 2]})})
     assert report.summary() == {"ok": False, "errors": {"x": 2}, "warnings": {"y": 2}}

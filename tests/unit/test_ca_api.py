@@ -1,15 +1,13 @@
-"""CA API ingest: parsing, subject-to-factor mapping, implied-vs-declared cross-check."""
+"""CA API ingest: parsing and subject-to-factor mapping."""
 
 import json
 from datetime import date
 
-import polars as pl
 import pytest
 
 from artha.data.ingest.ca_api import (
     ca_month_relpath,
     ca_month_url,
-    cross_check,
     declared_factor_events,
     expected_factor,
     parse_ca_records,
@@ -79,6 +77,14 @@ class TestExpectedFactor:
         assert expected_factor("Face Value Split From Rs 10/- To Re 1/-") == pytest.approx(0.1)
         assert expected_factor("Face Value Split From Rs 2/- To Re 1/-") == pytest.approx(0.5)
 
+    def test_older_subject_styles(self) -> None:
+        # 2010-era feed wording
+        assert expected_factor("Fv Split Rs.10 To Re.1") == pytest.approx(0.1)
+        assert expected_factor(
+            "Face Value Split (Sub-Division) - From Rs 10/- Per Share To Rs 2/- Per Share"
+        ) == pytest.approx(0.2)
+        assert expected_factor("Bonus-1:2") == pytest.approx(2 / 3)
+
     def test_not_derivable(self) -> None:
         assert expected_factor("Interim Dividend - Rs 12 Per Share") is None
         assert expected_factor("Rights 119:758 @ Premium Rs 218/-") is None
@@ -96,27 +102,11 @@ def test_declared_factor_events_filters_and_dedupes() -> None:
     assert ev["factor"] == 0.5
 
 
-def test_cross_check() -> None:
-    implied = pl.DataFrame(
-        {
-            "canon_symbol": ["RELIANCE", "GHOST"],
-            "ex_date": [date(2024, 10, 28), date(2024, 5, 2)],
-            "factor": [0.501, 0.25],
-        }
-    )
-    declared = pl.DataFrame(
-        {
-            "symbol": ["RELIANCE", "MISSED"],
-            "ex_date": [date(2024, 10, 28), date(2024, 6, 3)],
-            "subject": ["Bonus 1:1", "Bonus 1:1"],
-            "factor": [0.5, 0.5],
-        }
-    )
-    out = cross_check(implied, declared)
-    # 0.501 vs 0.5 is inside 2% tolerance
-    assert out["factor_mismatch"].is_empty()
-    # declared MISSED has no implied event; implied-only GHOST is not reported
-    assert out["declared_missing_implied"]["canon_symbol"].to_list() == ["MISSED"]
-
-    tight = cross_check(implied, declared, rel_tolerance=0.001)
-    assert tight["factor_mismatch"]["canon_symbol"].to_list() == ["RELIANCE"]
+def test_same_symbol_two_subjects_same_day_both_survive() -> None:
+    records = [
+        {**SAMPLE[0], "subject": "Bonus 1:1"},
+        {**SAMPLE[0], "subject": "Face Value Split From Rs 10 To Re 1"},
+    ]
+    events = declared_factor_events(parse_ca_records(json.dumps(records).encode()))
+    assert events.height == 2
+    assert sorted(events["factor"].to_list()) == [0.1, 0.5]

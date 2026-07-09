@@ -19,6 +19,12 @@ RETURN_OUTLIER_THRESHOLD: Final = 0.30
 # suggests a truncated file rather than a thin session.
 THIN_DATE_FRACTION: Final = 0.5
 
+# NSE's PREVCLOSE is the raw prior close (never CA-adjusted; ADR 0005), so a
+# mismatch against our own prior close means a session file is missing from
+# the panel (weekend special session, gap) or NSE republished data.
+PREV_CLOSE_REL_TOL: Final = 0.005
+PREV_CLOSE_ABS_TOL: Final = 0.02
+
 _EPS: Final = 1e-6
 
 
@@ -87,5 +93,22 @@ def run_qa(panel: pl.DataFrame) -> QaReport:
     )
     if thin.height:
         report.warnings["thin_dates"] = thin
+
+    prev_diff = (pl.col("prev_close") - pl.col("prior_close")).abs()
+    mismatches = (
+        panel.sort("canon_symbol", "trade_date")
+        .with_columns(pl.col("close").shift(1).over("canon_symbol").alias("prior_close"))
+        .filter(
+            pl.col("prior_close").is_not_null()
+            & (pl.col("prior_close") > 0)
+            & (pl.col("prev_close") > 0)
+            & (prev_diff > PREV_CLOSE_ABS_TOL)
+            & (prev_diff > PREV_CLOSE_REL_TOL * pl.col("prior_close"))
+        )
+        .select("canon_symbol", "trade_date", "prior_close", "prev_close")
+        .sort("canon_symbol", "trade_date")
+    )
+    if mismatches.height:
+        report.warnings["prev_close_mismatches"] = mismatches
 
     return report

@@ -1,10 +1,10 @@
-"""Declared corporate actions from the NSE CA API (cross-check source, ADR 0003).
+"""Declared corporate actions from the NSE CA API: THE adjustment source (ADR 0005).
 
 The API (www.nseindia.com, cookie dance) returns declared actions filtered by
-ex-date window; coverage reaches back to ~2011. Stored as monthly JSON files
-in the raw zone. The adjustment engine derives factors from prices; this feed
-only cross-checks that price-affecting declared events (bonus/split) have a
-matching implied event and vice versa.
+ex-date window; coverage reaches back to at least 2005. Stored as monthly
+JSON files in the raw zone. Bonus and face-value-split subjects parse into
+adjustment factors; the bhavcopy itself carries no adjustment information
+(its previous close is always the raw prior close).
 """
 
 import calendar
@@ -21,11 +21,15 @@ from artha.data.ingest.nse_http import NseDownloadError, fetch
 from artha.data.store import RawStore
 
 CA_API_URL: Final = "https://www.nseindia.com/api/corporates-corporateActions"
-CA_API_START: Final = date(2011, 1, 1)  # earliest records observed (probed 2026-07-08)
+# Feed reaches at least 2005 (probed 2026-07-08); panel starts 2010.
+CA_API_START: Final = date(2010, 1, 1)
 
-_BONUS_RE: Final = re.compile(r"\bbonus\s+(\d+)\s*:\s*(\d+)", re.IGNORECASE)
+# Subject styles vary across eras: "Bonus 1:1", "Bonus-1:2",
+# "Face Value Split From Rs 10/- Per Share To Rs 2/- Per Share",
+# "Fv Split Rs.10 To Re.1". First number after the keyword, first after "to".
+_BONUS_RE: Final = re.compile(r"\bbonus\b\D{0,8}?(\d+)\s*:\s*(\d+)", re.IGNORECASE)
 _SPLIT_RE: Final = re.compile(
-    r"\bsplit.*?rs?\.?\s*(\d+(?:\.\d+)?)\s*(?:/-)?\s*to\s*.*?re?s?\.?\s*(\d+(?:\.\d+)?)",
+    r"\bsplit\b\D*?(\d+(?:\.\d+)?)\D*?\bto\b\D*?(\d+(?:\.\d+)?)",
     re.IGNORECASE,
 )
 
@@ -113,44 +117,17 @@ def expected_factor(subject: str) -> float | None:
 
 
 def declared_factor_events(ca: pl.DataFrame) -> pl.DataFrame:
-    """Declared events with a derivable factor: (symbol, ex_date, subject, factor)."""
+    """Declared events with a derivable factor: (symbol, ex_date, subject, factor).
+
+    Exact duplicates collapse (the feed repeats records across series); a
+    bonus and a split on the same ex-date both survive - the adjuster
+    multiplies them.
+    """
     factors = [expected_factor(s) if s else None for s in ca["subject"].to_list()]
     return (
         ca.with_columns(pl.Series("factor", factors, dtype=pl.Float64))
         .filter(pl.col("factor").is_not_null() & pl.col("ex_date").is_not_null())
         .select("symbol", "ex_date", "subject", "factor")
-        .unique(subset=["symbol", "ex_date"])
+        .unique(subset=["symbol", "ex_date", "subject"])
         .sort("symbol", "ex_date")
     )
-
-
-def cross_check(
-    implied: pl.DataFrame, declared: pl.DataFrame, *, rel_tolerance: float = 0.02
-) -> dict[str, pl.DataFrame]:
-    """Compare implied (canon_symbol, ex_date, factor) vs declared factor events.
-
-    Returns review frames: ``factor_mismatch`` (both sides present, factors
-    differ beyond tolerance) and ``declared_missing_implied`` (declared
-    bonus/split with no implied event: adjustment engine may have missed it).
-    Implied-without-declared is expected (rights, special dividends, pre-2011)
-    and not reported here.
-
-    Caveat: declared symbols are as of the ex-date while implied symbols are
-    canonical (post-rename); companies renamed after a CA appear as false
-    positives in ``declared_missing_implied``. Review frames, not a gate.
-    """
-    joined = implied.join(
-        declared.rename({"symbol": "canon_symbol", "factor": "declared_factor"}),
-        on=["canon_symbol", "ex_date"],
-        how="full",
-        coalesce=True,
-    )
-    both = joined.filter(pl.col("factor").is_not_null() & pl.col("declared_factor").is_not_null())
-    mismatch = both.filter((pl.col("factor") / pl.col("declared_factor") - 1).abs() > rel_tolerance)
-    missing = joined.filter(pl.col("factor").is_null()).select(
-        "canon_symbol", "ex_date", "subject", "declared_factor"
-    )
-    return {
-        "factor_mismatch": mismatch.sort("canon_symbol", "ex_date"),
-        "declared_missing_implied": missing.sort("canon_symbol", "ex_date"),
-    }
