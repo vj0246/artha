@@ -4,7 +4,13 @@ from datetime import date
 
 import polars as pl
 
-from artha.data.adjust import adjustment_events, apply_adjustment, equity_panel
+from artha.data.adjust import (
+    adjustment_events,
+    apply_adjustment,
+    combine_events,
+    equity_panel,
+    gap_factor_events,
+)
 
 NO_CHANGES = pl.DataFrame(
     {
@@ -125,6 +131,53 @@ class TestAdjustmentEvents:
         events = adjustment_events(declared, NO_CHANGES)
         assert events.height == 1
         assert events.row(0, named=True)["factor"] == 0.05
+
+
+class TestGapFactorEvents:
+    def test_observed_gap_and_precedence(self) -> None:
+        bhav = mk_bhav(
+            [
+                (date(2024, 1, 1), "G", "EQ", 100.0, 100.0, 10),
+                (date(2024, 1, 2), "G", "EQ", 96.5, 100.0, 10),  # demerger ex-date
+                (date(2024, 1, 3), "G", "EQ", 97.0, 96.5, 10),
+            ]
+        )
+        panel = equity_panel(bhav, NO_CHANGES)
+        # mk_bhav sets open = close, so the observed gap is 96.5 / 100
+        gap_dates = pl.DataFrame({"canon_symbol": ["G"], "ex_date": [date(2024, 1, 2)]})
+        gaps = gap_factor_events(panel, gap_dates)
+        assert gaps.height == 1
+        assert gaps.row(0, named=True)["factor"] == 0.965
+
+        # a parsed event on the same date is superseded by the gap factor
+        parsed = adjustment_events(mk_declared([("G", date(2024, 1, 2), 0.5)]), NO_CHANGES)
+        events = combine_events(parsed, gaps)
+        assert events.height == 1
+        assert events.row(0, named=True)["factor"] == 0.965
+
+    def test_gap_up_is_not_an_event(self) -> None:
+        bhav = mk_bhav(
+            [
+                (date(2024, 1, 1), "U", "EQ", 100.0, 100.0, 10),
+                (date(2024, 1, 2), "U", "EQ", 101.0, 100.0, 10),  # market drift only
+            ]
+        )
+        panel = equity_panel(bhav, NO_CHANGES)
+        gap_dates = pl.DataFrame({"canon_symbol": ["U"], "ex_date": [date(2024, 1, 2)]})
+        assert gap_factor_events(panel, gap_dates).is_empty()
+
+    def test_weekend_ex_date_snaps_to_next_session(self) -> None:
+        bhav = mk_bhav(
+            [
+                (date(2024, 1, 5), "W", "EQ", 100.0, 100.0, 10),  # Friday
+                (date(2024, 1, 8), "W", "EQ", 90.0, 100.0, 10),  # Monday
+            ]
+        )
+        panel = equity_panel(bhav, NO_CHANGES)
+        gap_dates = pl.DataFrame({"canon_symbol": ["W"], "ex_date": [date(2024, 1, 6)]})
+        gaps = gap_factor_events(panel, gap_dates)
+        assert gaps.row(0, named=True)["ex_date"] == date(2024, 1, 8)
+        assert gaps.row(0, named=True)["factor"] == 0.9
 
 
 class TestApplyAdjustment:

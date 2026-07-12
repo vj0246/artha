@@ -32,6 +32,20 @@ ingested from 2010 to match the panel):
 - Symbols are canonicalized date-aware; same-day factors multiply;
   ex-dates on non-trading days snap forward to the symbol's next session.
 
+## Audit addendum (2026-07-12, plan v2 section 5.0)
+
+The 20-name external spot-check added two mechanisms:
+
+- Combined subjects ("Bonus 1:1 / Face Value Split From Rs 10 To Rs 2")
+  multiply both legs into one factor.
+- Demergers, rights, and capital reductions have no parseable ratio but a
+  real discontinuity; they now get OBSERVED-GAP factors,
+  open(ex) / close(prev session), on ex-dates gated by the declared feed
+  (so no phantom events; ~1% overnight-drift noise accepted). On such a
+  date the gap factor supersedes parsed factors, since the gap already
+  contains them. 462 gap events on full history (RELIANCE JFS 2023, ITC
+  Hotels 2025, WIPRO 2013, BHARTIARTL rights 2021, ...).
+
 ## Safety nets and accepted limits
 
 - QA return-outlier scan (|1-day adjusted return| > 30%) is the catch-all

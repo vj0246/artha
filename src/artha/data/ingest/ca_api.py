@@ -32,6 +32,11 @@ _SPLIT_RE: Final = re.compile(
     r"\bsplit\b\D*?(\d+(?:\.\d+)?)\D*?\bto\b\D*?(\d+(?:\.\d+)?)",
     re.IGNORECASE,
 )
+# Events with a real price discontinuity but no ratio in the subject; their
+# factor is observed from the ex-date price gap (ADR 0005 audit addendum).
+_GAP_RE: Final = re.compile(
+    r"\b(demerger|rights|capital reduction|scheme of arrangement)\b", re.IGNORECASE
+)
 
 
 def ca_month_relpath(d: date) -> str:
@@ -101,19 +106,34 @@ def expected_factor(subject: str) -> float | None:
 
     Bonus a:b (a new per b held): factor = b / (a + b).
     Face-value split Rs x -> Rs y: factor = y / x.
-    Rights/dividends/others: None (factor depends on price or is nil).
+    One subject can carry both ("Bonus 1:1/Face Value Split From Rs 10 To
+    Rs 2"): the legs multiply. Rights/dividends/others: None.
     """
+    factor = 1.0
     m = _BONUS_RE.search(subject)
     if m:
         a, b = int(m.group(1)), int(m.group(2))
         if a > 0 and b > 0:
-            return b / (a + b)
+            factor *= b / (a + b)
     m = _SPLIT_RE.search(subject)
     if m:
         x, y = float(m.group(1)), float(m.group(2))
         if x > 0 and 0 < y < x:
-            return y / x
-    return None
+            factor *= y / x
+    return factor if factor < 1.0 else None
+
+
+def declared_gap_events(ca: pl.DataFrame) -> pl.DataFrame:
+    """Declared events whose factor must be observed from the price gap:
+    (symbol, ex_date, subject) for demergers, rights, capital reductions."""
+    subjects = ca["subject"].to_list()
+    mask = pl.Series("m", [bool(_GAP_RE.search(s)) if s else False for s in subjects])
+    return (
+        ca.filter(mask & pl.col("ex_date").is_not_null())
+        .select("symbol", "ex_date", "subject")
+        .unique(subset=["symbol", "ex_date"])
+        .sort("symbol", "ex_date")
+    )
 
 
 def declared_factor_events(ca: pl.DataFrame) -> pl.DataFrame:

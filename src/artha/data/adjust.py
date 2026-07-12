@@ -3,9 +3,10 @@
 Full-history validation falsified ADR 0003: the bhavcopy PREVCLOSE is the
 raw prior close in BOTH formats (INFY bonus 2015, WIPRO bonus 2017, RELIANCE
 bonus 2024 all show unadjusted base prices), so no implied factor exists in
-primary price data. Factors come from the declared corporate-actions feed
-instead, parsed into ratios for bonuses and face-value splits; the QA
-return-outlier scan is the safety net for anything unparseable.
+primary price data. Factors come from the declared corporate-actions feed:
+parsed ratios for bonuses and face-value splits, observed ex-date price gaps
+for demergers/rights/capital reductions (dates gated by the feed, so no
+phantom events). The QA return-outlier scan remains the catch-all.
 
 Backward adjustment: prices strictly before an ex-date are multiplied by the
 product of all later factors; volumes are divided by it.
@@ -81,6 +82,58 @@ def adjustment_events(declared: pl.DataFrame, symbol_changes: pl.DataFrame) -> p
         .agg(pl.col("factor").product())
         .sort("canon_symbol", "ex_date")
     )
+
+
+def gap_factor_events(panel: pl.DataFrame, gap_events: pl.DataFrame) -> pl.DataFrame:
+    """Observed-gap factors for declared events without a parseable ratio.
+
+    ``gap_events``: (canon_symbol, ex_date) for demergers/rights/etc. The
+    factor is the overnight gap open(ex) / close(previous session), which
+    captures the value transfer plus any same-day ratio event (so on these
+    dates the gap factor REPLACES parsed factors -- see combine_events).
+    Gaps >= 1 (market noise swamped the adjustment) and micro-gaps are
+    dropped; extreme gaps are kept and surface in the QA outlier review.
+    """
+    with_prior = (
+        panel.sort("canon_symbol", "trade_date")
+        .with_columns(pl.col("close").shift(1).over("canon_symbol").alias("_prior_close"))
+        .select("canon_symbol", pl.col("trade_date").alias("_session_date"), "open", "_prior_close")
+        .sort("_session_date")
+    )
+    return (
+        gap_events.sort("ex_date")
+        .join_asof(
+            with_prior,
+            left_on="ex_date",
+            right_on="_session_date",
+            by="canon_symbol",
+            strategy="forward",
+        )
+        .filter(pl.col("_session_date").is_not_null() & (pl.col("_prior_close") > 0))
+        .with_columns(pl.col("_session_date").alias("ex_date"))
+        .with_columns((pl.col("open") / pl.col("_prior_close")).alias("factor"))
+        .filter(pl.col("factor") < 0.995)  # >=1 or ~1: nothing observable to adjust
+        .unique(subset=["canon_symbol", "ex_date"])
+        .select("canon_symbol", "ex_date", "factor")
+        .sort("canon_symbol", "ex_date")
+    )
+
+
+def combine_events(parsed: pl.DataFrame, gap: pl.DataFrame) -> pl.DataFrame:
+    """Union parsed-ratio and observed-gap factor events.
+
+    On a date carrying both, the observed gap already contains the ratio
+    event's effect, so the gap factor wins and the parsed one is dropped.
+    """
+    parsed_only = parsed.join(
+        gap.select("canon_symbol", "ex_date"), on=["canon_symbol", "ex_date"], how="anti"
+    )
+    return pl.concat(
+        [
+            parsed_only.select("canon_symbol", "ex_date", "factor"),
+            gap.select("canon_symbol", "ex_date", "factor"),
+        ]
+    ).sort("canon_symbol", "ex_date")
 
 
 def apply_adjustment(panel: pl.DataFrame, events: pl.DataFrame) -> pl.DataFrame:

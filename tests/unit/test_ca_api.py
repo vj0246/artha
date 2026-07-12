@@ -77,6 +77,14 @@ class TestExpectedFactor:
         assert expected_factor("Face Value Split From Rs 10/- To Re 1/-") == pytest.approx(0.1)
         assert expected_factor("Face Value Split From Rs 2/- To Re 1/-") == pytest.approx(0.5)
 
+    def test_combined_bonus_and_split_subject_multiplies(self) -> None:
+        assert expected_factor(
+            "Bonus 1:1 / Face Value Split From Rs.10/- To Re.1/-"
+        ) == pytest.approx(0.05)
+        assert expected_factor(
+            " Bonus 1:1/Face Value Split (Sub-Division) - From Rs 10/- Per Share To Rs 2/-"
+        ) == pytest.approx(0.1)
+
     def test_older_subject_styles(self) -> None:
         # 2010-era feed wording
         assert expected_factor("Fv Split Rs.10 To Re.1") == pytest.approx(0.1)
@@ -100,6 +108,19 @@ def test_declared_factor_events_filters_and_dedupes() -> None:
     ev = events.row(0, named=True)
     assert ev["symbol"] == "RELIANCE"
     assert ev["factor"] == 0.5
+
+
+def test_declared_gap_events_selects_unparseable_discontinuities() -> None:
+    from artha.data.ingest.ca_api import declared_gap_events
+
+    records = [
+        {**SAMPLE[0], "subject": "Demerger"},
+        {**SAMPLE[1], "subject": " Rights 1:14 @ Premium Rs 530/-"},
+        {**SAMPLE[1], "subject": "Interim Dividend - Rs 12 Per Share", "exDate": "30-Oct-2024"},
+    ]
+    gaps = declared_gap_events(parse_ca_records(json.dumps(records).encode()))
+    assert gaps.height == 2
+    assert set(gaps["symbol"].to_list()) == {"RELIANCE", "DIVI"}
 
 
 def test_same_symbol_two_subjects_same_day_both_survive() -> None:

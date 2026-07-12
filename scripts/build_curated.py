@@ -20,11 +20,24 @@ from pathlib import Path
 import polars as pl
 
 from artha.config import load_settings
-from artha.data.adjust import adjustment_events, apply_adjustment, equity_panel
+from artha.data.adjust import (
+    adjustment_events,
+    apply_adjustment,
+    canonicalize_symbols,
+    combine_events,
+    equity_panel,
+    gap_factor_events,
+)
 from artha.data.curated import build_curated_bhavcopy, load_curated_bhavcopy
-from artha.data.ingest.ca_api import declared_factor_events, parse_ca_records
+from artha.data.ingest.ca_api import (
+    declared_factor_events,
+    declared_gap_events,
+    parse_ca_records,
+)
+from artha.data.ingest.indices import parse_nifty500_list
 from artha.data.ingest.nse_http import nse_client
 from artha.data.ingest.symbolchange import download_symbolchange, parse_symbolchange
+from artha.data.master import build_security_master
 from artha.data.qa import run_qa
 from artha.data.store import RawStore
 
@@ -60,8 +73,17 @@ def main() -> int:
 
     bhav = load_curated_bhavcopy(settings.curated_dir).collect()
     panel = equity_panel(bhav, changes)
-    declared = declared_factor_events(load_declared_ca(settings.raw_dir))
-    events = adjustment_events(declared, changes)
+    ca = load_declared_ca(settings.raw_dir)
+    parsed = adjustment_events(declared_factor_events(ca), changes)
+    gap_dates = (
+        canonicalize_symbols(
+            declared_gap_events(ca).rename({"symbol": "canon_symbol"}), changes, date_col="ex_date"
+        )
+        .select("canon_symbol", "ex_date")
+        .unique()
+    )
+    gaps = gap_factor_events(panel, gap_dates)
+    events = combine_events(parsed, gaps)
     adjusted = apply_adjustment(panel, events)
 
     adjusted.write_parquet(settings.curated_dir / "panel.parquet")
@@ -69,8 +91,20 @@ def main() -> int:
     print(
         f"panel: {adjusted.height} rows, {adjusted['canon_symbol'].n_unique()} instruments, "
         f"{adjusted['trade_date'].n_unique()} days\n"
-        f"declared CA factor events: {events.height}"
+        f"CA events: {events.height} (parsed {parsed.height}, observed-gap {gaps.height})"
     )
+
+    snapshots_n500 = sorted((settings.raw_dir / "constituents").glob("nifty500_*.csv"))
+    if snapshots_n500:
+        n500 = parse_nifty500_list(snapshots_n500[-1].read_bytes())
+        master = build_security_master(adjusted, n500)
+        master.write_parquet(settings.curated_dir / "security_master.parquet")
+        print(
+            f"security master: {master.height} symbols, "
+            f"{master['industry'].is_not_null().sum()} with sector"
+        )
+    else:
+        print("WARNING: no NIFTY 500 snapshot in raw zone; security master not built")
 
     qa = run_qa(adjusted)
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")

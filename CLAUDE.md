@@ -1,14 +1,15 @@
 # Artha — Working Rules for Claude Code
 
 ## Phase tracker (update every session)
-**P1 GATE PASSED 2026-07-09 (P0 2026-07-08). Data layer complete: 2010-2026
-bhavcopy raw zone (4,097 sessions incl. weekend specials), curated panel
-(7.1M rows, 3,623 instruments), CA adjustment from declared feed (ADR 0005 —
-implied-factor design of ADR 0003 falsified: PREVCLOSE never CA-adjusted),
-trading calendar, QA suite, PIT liquidity universe (ADR 0004), index closes
-2012+, constituent snapshots, real-data regression tests in
-tests/integration. Open: NIFTY 500 TRI source (Appendix B). Next: P2
-vectorized backtester + cost model + baselines + lookahead suite.**
+**Plan v2 (2026-07-11) adopted: research Track A first. P1 gate passed
+2026-07-09; v2 section 5.0 acceptance audit PASSED 2026-07-12 (see
+docs/research/p1-audit.md): 19-name Yahoo spot-check green (caught and
+fixed combined bonus+split parsing and missing demerger/rights gap
+factors — ADR 0005 addendum), security master built, universe overlap
+evidenced. Open: NIFTY 500 TRI source (synthetic TRI from div-yield
+column is the P2 fallback); pre-2012-08 benchmark gap. Next: P1b event
+data ingest (announcements + results calendar, knowability rule), then
+P2 vectorized backtester + baselines + lookahead suite.**
 
 - [x] P0 scaffold · [x] P1 data layer · [ ] P2 vectorized backtest + baselines
 - [ ] P3 ML alpha · [ ] P4 portfolio + risk · [ ] P5 event engine
