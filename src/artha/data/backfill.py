@@ -22,6 +22,22 @@ POLITE_DELAY_S = 0.6
 PROGRESS_EVERY = 100
 
 
+def month_range(start: date, end: date) -> list[date]:
+    """First-of-month dates from start's month through end's month."""
+    months = []
+    y, m = start.year, start.month
+    while (y, m) <= (end.year, end.month):
+        months.append(date(y, m, 1))
+        y, m = (y + 1, 1) if m == 12 else (y, m + 1)
+    return months
+
+
+def last_complete_month(today: date) -> date:
+    """First day of the month before ``today``'s month: the raw zone is
+    immutable, so a partial current month must never be frozen."""
+    return date(today.year - 1, 12, 1) if today.month == 1 else date(today.year, today.month - 1, 1)
+
+
 def calendar_days(start: date, end: date) -> list[date]:
     """Every calendar day, weekends included: NSE holds special Saturday
     sessions (budget days, DR drills) and muhurat sessions on weekends, and

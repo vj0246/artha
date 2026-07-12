@@ -13,7 +13,7 @@ import sys
 from datetime import date, datetime
 
 from artha.config import load_settings
-from artha.data.backfill import run_backfill
+from artha.data.backfill import last_complete_month, month_range, run_backfill
 from artha.data.ingest.ca_api import CA_API_START, ca_month_relpath, download_ca_month
 from artha.data.ingest.nse_http import nse_api_client
 
@@ -22,25 +22,13 @@ def month_arg(text: str) -> date:
     return datetime.strptime(text, "%Y-%m").date()
 
 
-def month_range(start: date, end: date) -> list[date]:
-    months = []
-    y, m = start.year, start.month
-    while (y, m) <= (end.year, end.month):
-        months.append(date(y, m, 1))
-        y, m = (y + 1, 1) if m == 12 else (y, m + 1)
-    return months
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--start", type=month_arg, default=CA_API_START)
     parser.add_argument("--end", type=month_arg, default=None)
     args = parser.parse_args()
 
-    today = date.today()
-    last_complete = (
-        date(today.year - 1, 12, 1) if today.month == 1 else date(today.year, today.month - 1, 1)
-    )
+    last_complete = last_complete_month(date.today())
     end = min(args.end, last_complete) if args.end else last_complete
 
     result, _ = run_backfill(
