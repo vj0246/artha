@@ -6,10 +6,13 @@
 docs/research/p1-audit.md): 19-name Yahoo spot-check green (caught and
 fixed combined bonus+split parsing and missing demerger/rights gap
 factors — ADR 0005 addendum), security master built, universe overlap
-evidenced. Open: NIFTY 500 TRI source (synthetic TRI from div-yield
-column is the P2 fallback); pre-2012-08 benchmark gap. Next: P1b event
-data ingest (announcements + results calendar, knowability rule), then
-P2 vectorized backtester + baselines + lookahead suite.**
+evidenced. P1b gate PASSED 2026-07-13 (docs/research/p1b-event-data.md): 1.48M
+announcements 2010+ with exchange timestamps (58.5% after 15:30 —
+knowability rule implemented + tested), 157k board meetings 2012+;
+bulk deals deferred (API truncates at 70 rows/window). Open: NIFTY 500
+TRI source (synthetic TRI from div-yield column is the P2 fallback);
+pre-2012-08 benchmark gap. Next: P2 vectorized backtester + cost model
++ baselines + lookahead suite.**
 
 - [x] P0 scaffold · [x] P1 data layer · [ ] P2 vectorized backtest + baselines
 - [ ] P3 ML alpha · [ ] P4 portfolio + risk · [ ] P5 event engine

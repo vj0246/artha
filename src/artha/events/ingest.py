@@ -101,22 +101,26 @@ def parse_announcements(content: bytes) -> pl.DataFrame:
                 "seq_id": pl.String,
             }
         )
+
+    def s(value: object) -> str | None:
+        return None if value is None else str(value)
+
+    fields = {
+        "symbol": "symbol",
+        "isin": "sm_isin",
+        "company": "sm_name",
+        "industry": "smIndustry",
+        "category": "desc",
+        "subject": "attchmntText",
+        "announced_at": "an_dt",
+        "attachment_url": "attchmntFile",
+        "seq_id": "seq_id",
+    }
+    # occasional rows carry numeric values in nominally-string fields:
+    # coerce everything and skip schema inference entirely
     df = pl.DataFrame(
-        [
-            {
-                "symbol": r.get("symbol"),
-                "isin": r.get("sm_isin"),
-                "company": r.get("sm_name"),
-                "industry": r.get("smIndustry"),
-                "category": r.get("desc"),
-                "subject": r.get("attchmntText"),
-                "announced_at": r.get("an_dt"),
-                "attachment_url": r.get("attchmntFile"),
-                "seq_id": str(r["seq_id"]) if r.get("seq_id") is not None else None,
-            }
-            for r in records
-        ],
-        schema_overrides={"announced_at": pl.String},
+        [{col: s(r.get(key)) for col, key in fields.items()} for r in records],
+        schema=dict.fromkeys(fields, pl.String),
     )
     out = df.with_columns(
         pl.col("announced_at").str.to_datetime(_TS_FMT),
@@ -143,18 +147,20 @@ def parse_board_meetings(content: bytes) -> pl.DataFrame:
                 "intimated_at": pl.Datetime,
             }
         )
+    fields = {
+        "symbol": "bm_symbol",
+        "isin": "sm_isin",
+        "meeting_date": "bm_date",
+        "purpose": "bm_purpose",
+        "description": "bm_desc",
+        "intimated_at": "bm_timestamp",
+    }
     df = pl.DataFrame(
         [
-            {
-                "symbol": r.get("bm_symbol"),
-                "isin": r.get("sm_isin"),
-                "meeting_date": r.get("bm_date"),
-                "purpose": r.get("bm_purpose"),
-                "description": r.get("bm_desc"),
-                "intimated_at": r.get("bm_timestamp"),
-            }
+            {col: None if r.get(key) is None else str(r.get(key)) for col, key in fields.items()}
             for r in records
-        ]
+        ],
+        schema=dict.fromkeys(fields, pl.String),
     )
     return df.with_columns(
         pl.col("meeting_date").str.to_date("%d-%b-%Y"),
@@ -180,23 +186,25 @@ def parse_bulk_deals(content: bytes) -> pl.DataFrame:
                 "remarks": pl.String,
             }
         )
+    fields = {
+        "trade_date": "BD_DT_DATE",
+        "symbol": "BD_SYMBOL",
+        "client_name": "BD_CLIENT_NAME",
+        "side": "BD_BUY_SELL",
+        "quantity": "BD_QTY_TRD",
+        "wavg_price": "BD_TP_WATP",
+        "remarks": "BD_REMARKS",
+    }
     df = pl.DataFrame(
         [
-            {
-                "trade_date": r.get("BD_DT_DATE"),
-                "symbol": r.get("BD_SYMBOL"),
-                "client_name": r.get("BD_CLIENT_NAME"),
-                "side": r.get("BD_BUY_SELL"),
-                "quantity": r.get("BD_QTY_TRD"),
-                "wavg_price": r.get("BD_TP_WATP"),
-                "remarks": r.get("BD_REMARKS"),
-            }
+            {col: None if r.get(key) is None else str(r.get(key)) for col, key in fields.items()}
             for r in records
-        ]
+        ],
+        schema=dict.fromkeys(fields, pl.String),
     )
     return df.with_columns(
         pl.col("trade_date").str.to_titlecase().str.to_date("%d-%b-%Y"),
-        pl.col("quantity").cast(pl.Int64),
+        pl.col("quantity").cast(pl.Float64).cast(pl.Int64),
         pl.col("wavg_price").cast(pl.Float64),
         pl.col("remarks").replace("-", None),
     ).sort("trade_date", "symbol")
