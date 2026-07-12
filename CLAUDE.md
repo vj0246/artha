@@ -6,13 +6,16 @@
 docs/research/p1-audit.md): 19-name Yahoo spot-check green (caught and
 fixed combined bonus+split parsing and missing demerger/rights gap
 factors — ADR 0005 addendum), security master built, universe overlap
-evidenced. P1b gate PASSED 2026-07-13 (docs/research/p1b-event-data.md): 1.48M
-announcements 2010+ with exchange timestamps (58.5% after 15:30 —
-knowability rule implemented + tested), 157k board meetings 2012+;
-bulk deals deferred (API truncates at 70 rows/window). Open: NIFTY 500
-TRI source (synthetic TRI from div-yield column is the P2 fallback);
-pre-2012-08 benchmark gap. Next: P2 vectorized backtester + cost model
-+ baselines + lookahead suite.**
+evidenced. P1b gate PASSED 2026-07-13 (1.48M announcements, knowability rule; bulk
+deals deferred — API truncates at 70 rows/window). P2 gate PASSED
+2026-07-13 (docs/research/p2-baselines.md): MarketSpec + NSE cost model,
+weekly vectorized backtester (T+1-close execution), lookahead suite in
+CI (planted-jump, scrambled-signal, registry audit). Stylized facts net
+of costs 2012-2026: momentum 12-1 Sharpe 0.96/CAGR 23.6%, low-vol 1.08,
+reversal killed by 47x turnover (gross 0.72 -> net 0.17), benchmark
+0.87. Open: TRI benchmark (synthetic from div-yield queued); raw-zone
+file-integrity scan. Next: P3 model comparison study (ridge/LGBM/MLP/
+transformer, purged CV + embargo, CPCV, DSR/PBO, trial ledger).**
 
 - [x] P0 scaffold · [x] P1 data layer · [ ] P2 vectorized backtest + baselines
 - [ ] P3 ML alpha · [ ] P4 portfolio + risk · [ ] P5 event engine

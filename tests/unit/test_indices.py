@@ -40,6 +40,32 @@ class TestParseIndexClose:
         assert rate["volume"] is None
         assert rate["close"] == 2297.88
 
+    def test_slash_dates_normalized(self) -> None:
+        content = (
+            b"Index Name,Index Date,Open Index Value,High Index Value,Low Index Value,"
+            b"Closing Index Value,Points Change,Change(%),Volume,Turnover (Rs. Cr.),"
+            b"P/E,P/B,Div Yield\n"
+            b"Nifty 50,01/09/2014,,8100,7990,8050,50,.62,100,10.5,20,3,1.2\n"
+        )
+        df = parse_index_close(content, date(2014, 9, 1))
+        row = df.row(0, named=True)
+        assert row["close"] == 8050.0
+        assert row["open"] is None  # empty numeric field -> null
+
+    def test_month_first_dates_disambiguated(self) -> None:
+        # some 2023 vintages write MM-DD-YYYY; the filename date decides
+        content = (
+            b"Index Name,Index Date,Open Index Value,High Index Value,Low Index Value,"
+            b"Closing Index Value,Points Change,Change(%),Volume,Turnover (Rs. Cr.),"
+            b"P/E,P/B,Div Yield\n"
+            b"Nifty 50,04-06-2023,17550,17600,17500,17580,30,.17,100,10.5,20,3,1.2\n"
+        )
+        df = parse_index_close(content, date(2023, 4, 6))
+        assert df.row(0, named=True)["trade_date"] == date(2023, 4, 6)
+        # and the same string is day-first when the filename says June 4th
+        df2 = parse_index_close(content, date(2023, 6, 4))
+        assert df2.row(0, named=True)["trade_date"] == date(2023, 6, 4)
+
     def test_wrong_date_rejected(self) -> None:
         content = (FIXTURES / "ind_close_all_01072024.csv").read_bytes()
         with pytest.raises(IndexParseError, match="expected 2024-07-02"):

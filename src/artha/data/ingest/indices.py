@@ -82,12 +82,26 @@ def parse_index_close(content: bytes, expected_date: date) -> pl.DataFrame:
         schema=dict.fromkeys(_INDEX_CLOSE_HEADER, pl.String),
     )
     numeric = _INDEX_CLOSE_HEADER[2:]
+    # Date normalization across vintages: some files write 01/09/2014 with
+    # slashes, and some 2023 files flip to MM-DD-YYYY. The expected date is
+    # known from the filename, so parse day-first and fall back to
+    # month-first when that is what matches.
+    normalized = pl.col("Index Date").str.replace_all("/", "-")
+    day_first = normalized.str.to_date("%d-%m-%Y", strict=False)
+    month_first = normalized.str.to_date("%m-%d-%Y", strict=False)
+    date_expr = (
+        pl.when(day_first == expected_date)
+        .then(day_first)
+        .when(month_first == expected_date)
+        .then(month_first)
+        .otherwise(day_first)
+    )
     out = (
         df.with_columns(
-            pl.col("Index Date").str.to_date("%d-%m-%Y").alias("trade_date"),
+            date_expr.alias("trade_date"),
             pl.col("Index Name").str.strip_chars().alias("index_name"),
             *(
-                pl.col(c).str.strip_chars().replace("-", None).cast(pl.Float64).alias(alias)
+                pl.col(c).str.strip_chars().replace(["-", ""], None).cast(pl.Float64).alias(alias)
                 for c, alias in zip(
                     numeric,
                     [
