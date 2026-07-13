@@ -1,12 +1,15 @@
-"""P3 model comparison study runner: ridge and LightGBM legs.
+"""P3 model comparison study: ridge, LightGBM, MLP, transformer + CPCV/PBO.
 
 Usage:
-    uv run python scripts/run_model_study.py [--label-horizon 5]
+    uv run python scripts/run_model_study.py [--label-horizon 5] [--models ridge ...]
+    uv run python scripts/run_model_study.py --skip-cpcv
 
 Weekly-grid matrix from the PIT universe, purged expanding walk-forward CV
 (3y minimum train, ~quarterly test blocks, 1-week horizon + 4-week embargo
 in grid units), rank IC + decile spread + backtester net Sharpe per model,
 every run appended to the trial ledger, DSR against the ledger count.
+CPCV stage: 8 blocks choose 2, in-sample vs out-of-sample IC per model,
+PBO across the model set.
 """
 
 import argparse
@@ -18,6 +21,7 @@ from typing import cast
 import polars as pl
 from lightgbm import LGBMRegressor
 from sklearn.linear_model import Ridge
+from sklearn.neural_network import MLPRegressor
 
 from artha.backtest.metrics import summarize
 from artha.backtest.vectorized import run_backtest
@@ -27,10 +31,12 @@ from artha.data.universe import pit_universe
 from artha.features.library import build_features
 from artha.labels.horizon import forward_return_z
 from artha.marketspec.nse import nse_spec
+from artha.models.cpcv import cpcv_combinations, probability_of_backtest_overfitting
 from artha.models.cv import walk_forward_folds
 from artha.models.dsr import deflated_sharpe
 from artha.models.ledger import Trial, TrialLedger
-from artha.models.study import StudyResult, run_study
+from artha.models.study import StudyResult, rank_ic_per_date, run_study
+from artha.models.transformer import TabTransformerRegressor
 
 MODELS = {
     "ridge": (lambda: Ridge(alpha=1.0), {"alpha": 1.0}),
@@ -48,12 +54,29 @@ MODELS = {
         ),
         {"n_estimators": 400, "learning_rate": 0.05, "num_leaves": 63},
     ),
+    "mlp": (
+        lambda: MLPRegressor(
+            hidden_layer_sizes=(64, 32),
+            alpha=1e-4,
+            learning_rate_init=1e-3,
+            batch_size=4096,
+            max_iter=60,
+            random_state=7,
+        ),
+        {"hidden": [64, 32], "max_iter": 60},
+    ),
+    "transformer": (
+        lambda: TabTransformerRegressor(),
+        {"d_model": 32, "n_heads": 2, "n_layers": 1, "epochs": 15},
+    ),
 }
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--label-horizon", type=int, default=5)
+    parser.add_argument("--models", nargs="*", choices=sorted(MODELS), default=sorted(MODELS))
+    parser.add_argument("--skip-cpcv", action="store_true")
     args = parser.parse_args()
 
     settings = load_settings()
@@ -79,7 +102,8 @@ def main() -> int:
 
     ledger = TrialLedger(settings.reports_dir / "ledger.jsonl")
     results: dict[str, object] = {}
-    for name, (factory, params) in MODELS.items():
+    for name in args.models:
+        factory, params = MODELS[name]
         res: StudyResult = run_study(matrix, names, folds, factory, model_name=name)
         signal = res.predictions
         oos_px = universe.filter(pl.col("trade_date") >= folds[0].test_start)
@@ -120,6 +144,43 @@ def main() -> int:
             "ledger_trials": n_trials,
         }
         print(f"{name}: {json.dumps(results[name])}")
+
+    if not args.skip_cpcv:
+        combos = cpcv_combinations(grid, n_blocks=8, k_test=2, horizon_days=1, embargo_days=4)
+        is_scores: list[dict[str, float]] = []
+        oos_scores: list[dict[str, float]] = []
+        for ci, combo in enumerate(combos, 1):
+            is_c: dict[str, float] = {}
+            oos_c: dict[str, float] = {}
+            train = matrix.filter(pl.col("trade_date").is_in(combo.train_dates))
+            test = matrix.filter(pl.col("trade_date").is_in(combo.test_dates))
+            x_train = train.select(names).to_numpy()
+            y_train = train["label"].to_numpy()
+            x_test = test.select(names).to_numpy()
+            for name in args.models:
+                factory, _ = MODELS[name]
+                model = factory()
+                model.fit(x_train, y_train)
+                for frame, xs, store in (
+                    (train, x_train, is_c),
+                    (test, x_test, oos_c),
+                ):
+                    scored = frame.select("canon_symbol", "trade_date", "label").with_columns(
+                        pl.Series("score", model.predict(xs).astype("float64"))
+                    )
+                    store[name] = cast(float, rank_ic_per_date(scored)["ic"].mean())
+            is_scores.append(is_c)
+            oos_scores.append(oos_c)
+            print(f"cpcv {ci}/{len(combos)}: is={is_c} oos={oos_c}", flush=True)
+        pbo = probability_of_backtest_overfitting(is_scores, oos_scores)
+        results["cpcv"] = {
+            "n_combinations": len(combos),
+            "pbo": pbo,
+            "mean_oos_ic": {
+                m: sum(s[m] for s in oos_scores) / len(oos_scores) for m in args.models
+            },
+        }
+        print(f"PBO: {pbo}")
 
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     path = settings.reports_dir / f"model_study_{stamp}.json"

@@ -101,6 +101,46 @@ class TestStudy:
         assert first_pred >= folds[0].test_start
 
 
+class TestCpcv:
+    def test_combination_structure_and_purge(self) -> None:
+        from artha.models.cpcv import cpcv_combinations
+
+        combos = cpcv_combinations(DATES, n_blocks=8, k_test=2, horizon_days=2, embargo_days=3)
+        assert len(combos) == 28  # C(8,2)
+        c = combos[0]  # test blocks 0 and 1
+        assert c.test_blocks == (0, 1)
+        # no train date inside a test block or its 5-position purge halo
+        test_set = set(c.test_dates)
+        assert not test_set & set(c.train_dates)
+        last_test = max(c.test_dates)
+        after = [d for d in c.train_dates if d > last_test]
+        assert min(after) == last_test + timedelta(days=6)  # gap of 5 dates
+
+    def test_pbo_extremes(self) -> None:
+        from artha.models.cpcv import probability_of_backtest_overfitting
+
+        # best IS config always best OOS -> PBO 0
+        consistent_is = [{"a": 1.0, "b": 0.1, "c": 0.0}] * 10
+        consistent_oos = [{"a": 0.9, "b": 0.2, "c": 0.1}] * 10
+        assert probability_of_backtest_overfitting(consistent_is, consistent_oos) == 0.0
+        # best IS config always worst OOS -> PBO 1
+        flipped_oos = [{"a": -1.0, "b": 0.2, "c": 0.1}] * 10
+        assert probability_of_backtest_overfitting(consistent_is, flipped_oos) == 1.0
+
+
+def test_transformer_wrapper_learns_linear_signal() -> None:
+    from artha.models.transformer import TabTransformerRegressor
+
+    rng = np.random.default_rng(5)
+    X = rng.normal(size=(2000, 4)).astype("float32")
+    y = X[:, 0] * 1.0 + rng.normal(scale=0.1, size=2000)
+    model = TabTransformerRegressor(epochs=8, batch_size=512)
+    model.fit(X, y)
+    pred = model.predict(X)
+    corr = float(np.corrcoef(pred, y)[0, 1])
+    assert corr > 0.7
+
+
 class TestFeatureLibrary:
     def test_build_and_zscore(self) -> None:
         rng = np.random.default_rng(1)
