@@ -16,6 +16,8 @@ import re
 from dataclasses import dataclass
 from typing import Final
 
+import polars as pl
+
 
 @dataclass(frozen=True)
 class EventLabel:
@@ -98,3 +100,25 @@ def classify_rule_based(subject: str | None) -> EventLabel:
             if pattern.search(subject):
                 return EventLabel(category, direction, materiality)
     return EventLabel("other", 0, 0)
+
+
+def classify_frame(frame: pl.DataFrame, *, subject_col: str = "subject") -> pl.DataFrame:
+    """Vectorized rule classification: adds category/direction/materiality.
+
+    Same rules and precedence as ``classify_rule_based`` (single source of
+    truth: _RULES), evaluated as one polars when/then chain so the 1.5M-row
+    corpus classifies in seconds.
+    """
+    expr: pl.Expr = pl.lit("other")
+    dir_expr: pl.Expr = pl.lit(0)
+    mat_expr: pl.Expr = pl.lit(0)
+    for pattern, category, direction, materiality in reversed(_RULES):
+        hit = pl.col(subject_col).str.contains(f"(?i){pattern}").fill_null(False)
+        expr = pl.when(hit).then(pl.lit(category)).otherwise(expr)
+        dir_expr = pl.when(hit).then(pl.lit(direction)).otherwise(dir_expr)
+        mat_expr = pl.when(hit).then(pl.lit(materiality)).otherwise(mat_expr)
+    return frame.with_columns(
+        expr.alias("category"),
+        dir_expr.cast(pl.Int8).alias("direction"),
+        mat_expr.cast(pl.Int8).alias("materiality"),
+    )
