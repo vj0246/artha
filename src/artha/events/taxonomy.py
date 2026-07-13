@@ -40,8 +40,25 @@ CATEGORIES: Final = (
     "other",
 )
 
-# Ordered: first match wins. Patterns run on the lowercased subject.
+# Ordered: first match wins. Patterns run case-insensitively.
+# The leading rules are precedence guards found by the 297-subject audit
+# (2026-07-13): regulation names and idioms that collide with category
+# keywords lower down.
 _RULES: Final[list[tuple[str, str, int, int]]] = [
+    # SAST/holding disclosures cite "Substantial Acquisition of Shares &
+    # Takeovers" without being M&A transactions
+    (r"substantial acquisition of shares|banking companies \(acquisition", "other", 0, 0),
+    # tax/GST/assessment "orders" are not order wins
+    (
+        r"(gst|tax|demand|assessment|penalty)\s+order|order received.*(gst|tax|penalty)",
+        "litigation_regulatory",
+        -1,
+        1,
+    ),
+    # NCLT/court-convened meetings are scheme-of-arrangement mechanics
+    (r"(nclt|court)[- ]convened", "m_and_a", 0, 1),
+    # figurative pledges ("pledges to be carbon neutral")
+    (r"pledges? to\b|pledges? substantial", "other", 0, 0),
     (
         r"financial result|unaudited.*result|audited.*result|results for the quarter",
         "earnings_result",

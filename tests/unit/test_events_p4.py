@@ -33,6 +33,23 @@ class TestTaxonomyRules:
             assert got.category == want, f"{subject!r} -> {got.category}, want {want}"
             assert got.category in CATEGORIES
 
+    def test_audit_driven_precedence_guards(self) -> None:
+        # systematic false positives found in the 297-subject audit
+        cases = {
+            "Disclosure under SEBI (Substantial Acquisition of Shares & Takeovers) "
+            "Regulations, 2011": "other",
+            "GST order received from Assistant Commissioner": "litigation_regulatory",
+            "Demand order u/s 73 of the SGST Act for payment of Tax": "litigation_regulatory",
+            "Notice of the NCLT Convened Meeting of the Equity Shareholders": "m_and_a",
+            "Mphasis pledges to be Carbon neutral by 2030": "other",
+            # and the true positives still classify correctly
+            "Bagging of order for 2,400 Electric Buses": "order_win",
+            "Creation of Pledge on the shares of the promoter": "pledge",
+            "Proposed Merger of Sesa Care with Dabur India": "m_and_a",
+        }
+        for subject, want in cases.items():
+            assert classify_rule_based(subject).category == want, subject
+
     def test_direction_and_materiality(self) -> None:
         assert classify_rule_based("Disclosure of pledge of shares").direction == -1
         assert classify_rule_based("SEBI order passed").materiality == 2
