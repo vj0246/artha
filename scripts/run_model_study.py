@@ -61,9 +61,12 @@ MODELS = {
             learning_rate_init=1e-3,
             batch_size=4096,
             max_iter=60,
+            early_stopping=True,
+            validation_fraction=0.1,
+            n_iter_no_change=5,
             random_state=7,
         ),
-        {"hidden": [64, 32], "max_iter": 60},
+        {"hidden": [64, 32], "max_iter": 60, "early_stopping": True},
     ),
     "transformer": (
         lambda: TabTransformerRegressor(),
