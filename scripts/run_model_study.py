@@ -80,6 +80,7 @@ def main() -> int:
     parser.add_argument("--label-horizon", type=int, default=5)
     parser.add_argument("--models", nargs="*", choices=sorted(MODELS), default=sorted(MODELS))
     parser.add_argument("--skip-cpcv", action="store_true")
+    parser.add_argument("--cpcv-only", action="store_true")
     args = parser.parse_args()
 
     settings = load_settings()
@@ -105,7 +106,7 @@ def main() -> int:
 
     ledger = TrialLedger(settings.reports_dir / "ledger.jsonl")
     results: dict[str, object] = {}
-    for name in args.models:
+    for name in [] if args.cpcv_only else args.models:
         factory, params = MODELS[name]
         res: StudyResult = run_study(matrix, names, folds, factory, model_name=name)
         signal = res.predictions

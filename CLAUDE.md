@@ -13,9 +13,15 @@ weekly vectorized backtester (T+1-close execution), lookahead suite in
 CI (planted-jump, scrambled-signal, registry audit). Stylized facts net
 of costs 2012-2026: momentum 12-1 Sharpe 0.96/CAGR 23.6%, low-vol 1.08,
 reversal killed by 47x turnover (gross 0.72 -> net 0.17), benchmark
-0.87. Open: TRI benchmark (synthetic from div-yield queued); raw-zone
-file-integrity scan. Next: P3 model comparison study (ridge/LGBM/MLP/
-transformer, purged CV + embargo, CPCV, DSR/PBO, trial ledger).**
+0.87. P3 gate PASSED 2026-07-13 (docs/research/p3-model-study.md): 4 models,
+48 purged folds + 28 CPCV combos. Ridge best (IC 0.043, net Sharpe 0.84,
+DSR 0.998); transformer 0.89 on GPU; LGBM/MLP overfit fast signals
+(PBO 0.86). NO model beats P2 momentum 0.96/low-vol 1.08 net — honest
+null per plan 7.1. Synthetic TRI benchmarks + integrity scan shipped.
+P4 core code started (taxonomy + event-study framework committed).
+GPU note: CUDA torch via `uv pip install torch --index-url .../cu126
+--reinstall`; `uv sync` reverts it; run with `uv run --no-sync`.
+Next: P4 event alpha (PEAD, corpus event studies, Model A vs B).**
 
 - [x] P0 scaffold · [x] P1 data layer · [ ] P2 vectorized backtest + baselines
 - [ ] P3 ML alpha · [ ] P4 portfolio + risk · [ ] P5 event engine
