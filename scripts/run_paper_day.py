@@ -32,6 +32,40 @@ from artha.marketspec.nse import NSECostModel
 from artha.portfolio.construct import ConstraintReport, Constructor
 
 
+def trailing_book_vol(log_path: object) -> float | None:
+    """Annualized trailing vol of the paper book's FULLY-INVESTED returns,
+    from the daily log (max of 21d and 63d windows, same convention as the
+    backtester). None until 22 sessions exist."""
+    from pathlib import Path
+
+    path = Path(str(log_path))
+    if not path.exists():
+        return None
+    rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
+    eq = [(r["equity"], r["cash"]) for r in rows if not r.get("dry_run")]
+    if len(eq) < 22:
+        return None
+    from itertools import pairwise
+
+    book: list[float] = []
+    for (e0, _), (e1, c1) in pairwise(eq):
+        exposure = (e1 - c1) / e1 if e1 > 0 else 0.0
+        if e0 > 0 and exposure > 0.05:
+            book.append((e1 / e0 - 1) / exposure)
+
+    def _vol(xs: list[float]) -> float:
+        n = len(xs)
+        m = sum(xs) / n
+        return (sum((x - m) ** 2 for x in xs) / (n - 1) * 252) ** 0.5
+
+    if len(book) < 21:
+        return None
+    vol = _vol(book[-21:])
+    if len(book) >= 63:
+        vol = max(vol, _vol(book[-63:]))
+    return vol
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dry-run", action="store_true")
@@ -88,7 +122,7 @@ def main() -> int:
         targets = constructor.build(
             [(s, adv.get(s, 0.0)) for s in scored["canon_symbol"]],
             prior,
-            None,  # trailing vol from the paper log once >= 21 days exist
+            trailing_book_vol(live_dir / "paper_log.jsonl"),
             creport,
             adv_map=adv,
         )

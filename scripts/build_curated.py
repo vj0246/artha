@@ -53,12 +53,19 @@ def load_declared_ca(raw_dir: Path) -> pl.DataFrame:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--years", type=int, nargs="*", default=None)
+    parser.add_argument(
+        "--incremental",
+        action="store_true",
+        help="re-parse only years with new raw files (daily-cycle mode)",
+    )
     args = parser.parse_args()
 
     settings = load_settings()
     store = RawStore(settings.raw_dir)
 
-    summary = build_curated_bhavcopy(settings.raw_dir, settings.curated_dir, years=args.years)
+    summary = build_curated_bhavcopy(
+        settings.raw_dir, settings.curated_dir, years=args.years, incremental=args.incremental
+    )
     print(summary)
 
     snapshots = sorted((settings.raw_dir / "symbolchange").glob("symbolchange_*.csv"))

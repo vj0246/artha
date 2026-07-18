@@ -12,12 +12,43 @@ import polars as pl
 from artha.data.ingest.bhavcopy import bhavcopy_date_from_filename, read_bhavcopy_zip
 
 
-def build_curated_bhavcopy(
-    raw_root: Path, curated_root: Path, *, years: list[int] | None = None
-) -> pl.DataFrame:
-    """Parse every raw bhavcopy zip into curated/bhavcopy/{year}.parquet.
+def _year_is_current(year_dir: Path, parquet: Path) -> bool:
+    """True when the year's parquet already covers every raw zip in the dir.
 
-    Returns a summary frame (year, files, rows).
+    Cheap filename-level check: the parquet is current iff it exists and the
+    set of trade dates it was built from (recorded row count is not enough -
+    a re-downloaded day replaces content) matches by newest date and count.
+    We compare max raw date and file count against parquet metadata columns.
+    """
+    if not parquet.exists():
+        return False
+    zips = list(year_dir.glob("*.zip"))
+    if not zips:
+        return True
+    newest_raw = max(bhavcopy_date_from_filename(z.name) for z in zips)
+    stats = (
+        pl.scan_parquet(parquet)
+        .select(
+            pl.col("trade_date").max().alias("max_d"),
+            pl.col("trade_date").n_unique().alias("n_days"),
+        )
+        .collect()
+    )
+    return bool(stats["max_d"][0] == newest_raw and stats["n_days"][0] == len(zips))
+
+
+def build_curated_bhavcopy(
+    raw_root: Path,
+    curated_root: Path,
+    *,
+    years: list[int] | None = None,
+    incremental: bool = False,
+) -> pl.DataFrame:
+    """Parse raw bhavcopy zips into curated/bhavcopy/{year}.parquet.
+
+    ``incremental=True`` skips years whose parquet already covers every raw
+    file (max date and session count match), so a daily run re-parses only
+    the current year. Returns a summary frame (year, files, rows).
     """
     src = raw_root / "bhavcopy"
     year_dirs = sorted(p for p in src.iterdir() if p.is_dir())
@@ -28,6 +59,9 @@ def build_curated_bhavcopy(
 
     summary: list[dict[str, int]] = []
     for year_dir in year_dirs:
+        parquet = out_dir / f"{year_dir.name}.parquet"
+        if incremental and _year_is_current(year_dir, parquet):
+            continue
         frames = [
             read_bhavcopy_zip(zp, trade_date=bhavcopy_date_from_filename(zp.name))
             for zp in sorted(year_dir.glob("*.zip"))
@@ -35,7 +69,7 @@ def build_curated_bhavcopy(
         if not frames:
             continue
         year_df = pl.concat(frames).sort("trade_date", "symbol", "series")
-        year_df.write_parquet(out_dir / f"{year_dir.name}.parquet")
+        year_df.write_parquet(parquet)
         summary.append({"year": int(year_dir.name), "files": len(frames), "rows": year_df.height})
     return pl.DataFrame(summary, schema={"year": pl.Int64, "files": pl.Int64, "rows": pl.Int64})
 
