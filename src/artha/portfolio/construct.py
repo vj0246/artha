@@ -53,6 +53,7 @@ class Constructor:
         prior_weights: dict[str, float],
         realized_vol: float | None,
         report: ConstraintReport,
+        adv_map: dict[str, float] | None = None,
     ) -> dict[str, float]:
         picks = ranked[: self.top_n]
         if not picks:
@@ -77,17 +78,22 @@ class Constructor:
                 banded[sym] = target
         banded = {s: w for s, w in banded.items() if w > _TOL}
 
-        # ADV participation cap limits the move per name
-        adv = dict(picks)
+        # ADV participation cap limits the move per name. A missing ADV must
+        # fail OPEN: capping an exit at zero would freeze departing names in
+        # the book forever (found the hard way - it silently pinned gross at
+        # 1.0 and erased vol targeting).
+        adv = {**(adv_map or {}), **dict(picks)}
         if self.capital > 0:
             capped: dict[str, float] = {}
             for sym in set(banded) | set(prior_weights):
                 target = banded.get(sym, 0.0)
                 prior = prior_weights.get(sym, 0.0)
-                max_move = self.adv_participation * adv.get(sym, 0.0) / self.capital
-                delta = target - prior
-                if abs(delta) > max_move:
-                    target = prior + max_move * (1 if delta > 0 else -1)
+                adv_value = adv.get(sym)
+                if adv_value is not None:
+                    max_move = self.adv_participation * adv_value / self.capital
+                    delta = target - prior
+                    if abs(delta) > max_move:
+                        target = prior + max_move * (1 if delta > 0 else -1)
                 if target > _TOL:
                     capped[sym] = target
             banded = capped

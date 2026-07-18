@@ -21,12 +21,15 @@ null per plan 7.1. Synthetic TRI benchmarks + integrity scan shipped.
 P4 core code started (taxonomy + event-study framework committed).
 GPU note: CUDA torch via `uv pip install torch --index-url .../cu126
 --reinstall`; `uv sync` reverts it; run with `uv run --no-sync`.
-P4 gate PASSED 2026-07-13 (docs/research/p4-event-alpha.md): 355k events
-classified (rule taxonomy, 81% audited accuracy, 4 systematic fixes);
-CARs significant but small with post-event FADE; PEAD INVERTED in India
-(top surprise quintile -213bps drift, t -6.9); Model A vs B = published
-null (events add no weekly alpha: delta Sharpe -0.05/-0.20). Next: P5
-portfolio construction + full validation + risk analytics.**
+P4 gate PASSED 2026-07-13: 355k events, 81% audited taxonomy, PEAD
+INVERTED in India, Model A vs B published null. P5 gate PASSED
+2026-07-18 (docs/research/p5-portfolio-validation.md): constructed
+momentum (caps/bands/ADV/vol-target 13.5%) — Sharpe 0.97, vol 13.45%
+IN BAND, maxDD halved to -27%, zero constraint violations, capacity
+flat to Rs 25Cr, beta 0.59/alpha 4%pa, DSR 0.64 @ 20 trials. Two bugs
+caught by the gate run: vol-target feedback loop (scale by unscaled
+book vol) and missing-ADV exit freeze (fail open). Next: P6 research
+report + survivorship before/after demo — closes Track A.**
 
 - [x] P0 scaffold · [x] P1 data layer · [ ] P2 vectorized backtest + baselines
 - [ ] P3 ML alpha · [ ] P4 portfolio + risk · [ ] P5 event engine

@@ -28,7 +28,11 @@ from artha.marketspec.base import MarketSpec
 from artha.portfolio.construct import ConstraintReport, Constructor
 
 ADV_WINDOW = 21
+# vol targeting uses the LARGER of a fast and slow estimate: the fast window
+# de-risks quickly in a crash, the slow one stops gross snapping back to 1.0
+# the moment 21 calm days pass (which left long-run vol far above target)
 VOL_LOOKBACK = 21
+VOL_LOOKBACK_SLOW = 63
 
 
 def _ann_vol(returns: list[float]) -> float:
@@ -42,6 +46,7 @@ def _ann_vol(returns: list[float]) -> float:
 class BacktestResult:
     daily: pl.DataFrame  # trade_date, gross_return, cost, net_return, turnover
     holdings: pl.DataFrame  # rebalance_date, canon_symbol, weight
+    rebalances: pl.DataFrame  # rebalance_date, realized_vol, gross_target
 
     def net_curve(self) -> pl.DataFrame:
         return self.daily.with_columns(((1.0 + pl.col("net_return")).cum_prod()).alias("equity"))
@@ -100,7 +105,12 @@ def run_backtest(
     adv: dict[str, float] = {}
     pending: tuple[int, dict[str, float]] | None = None  # (exec day index, target)
     daily_rows: list[dict[str, object]] = []
+    # fully-invested book returns (portfolio return / gross exposure): the
+    # vol-targeting input. Using the scaled portfolio's own vol would be a
+    # feedback loop - once vol hits target, gross snaps back to 1.
+    book_returns: list[float] = []
     holding_rows: list[dict[str, object]] = []
+    rebalance_rows: list[dict[str, object]] = []
     rebalance_set = set(rebalance_days)
     cost_model = spec.cost_model
 
@@ -109,11 +119,13 @@ def run_backtest(
         #    an EARLIER close, and drift weights. This must precede execution:
         #    a position bought at today's close earns nothing today.
         gross = 0.0
+        exposure = sum(weights.values())
         if weights:
             rets = by_date.get(day)
             if rets is not None:
                 ret_map = dict(zip(rets["canon_symbol"], rets["ret"], strict=True))
                 gross = sum(w * ret_map.get(n, 0.0) for n, w in weights.items())
+                book_returns.append(gross / exposure if exposure > 1e-9 else 0.0)
                 # cash-aware drift: portfolio grows by `gross` (cash earns 0),
                 # each position by its own return
                 if 1 + gross > 0:
@@ -162,23 +174,32 @@ def run_backtest(
             )
             if picks.height:
                 adv.update(zip(picks["canon_symbol"], picks["adv_value"], strict=True))
+                realized: float | None = None
                 if constructor is None:
                     w = 1.0 / picks.height
                     target = dict.fromkeys(picks["canon_symbol"], w)
                 else:
-                    trailing = [r["net_return"] for r in daily_rows[-VOL_LOOKBACK:]]
-                    realized = (
-                        _ann_vol(cast(list[float], trailing))
-                        if len(trailing) >= VOL_LOOKBACK
-                        else None
-                    )
+                    fast = book_returns[-VOL_LOOKBACK:]
+                    slow = book_returns[-VOL_LOOKBACK_SLOW:]
+                    if len(fast) >= VOL_LOOKBACK:
+                        realized = _ann_vol(fast)
+                        if len(slow) >= VOL_LOOKBACK_SLOW:
+                            realized = max(realized, _ann_vol(slow))
                     target = constructor.build(
                         list(zip(picks["canon_symbol"], picks["adv_value"], strict=True)),
                         dict(weights),
                         realized,
                         report if report is not None else ConstraintReport(),
+                        adv_map=dict(adv),
                     )
                 pending = (i + exec_lag, target)
+                rebalance_rows.append(
+                    {
+                        "rebalance_date": day,
+                        "realized_vol": realized,
+                        "gross_target": sum(target.values()),
+                    }
+                )
                 holding_rows.extend(
                     {"rebalance_date": day, "canon_symbol": s, "weight": tw}
                     for s, tw in target.items()
@@ -189,5 +210,13 @@ def run_backtest(
         holdings=pl.DataFrame(
             holding_rows,
             schema={"rebalance_date": pl.Date, "canon_symbol": pl.String, "weight": pl.Float64},
+        ),
+        rebalances=pl.DataFrame(
+            rebalance_rows,
+            schema={
+                "rebalance_date": pl.Date,
+                "realized_vol": pl.Float64,
+                "gross_target": pl.Float64,
+            },
         ),
     )

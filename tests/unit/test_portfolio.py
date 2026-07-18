@@ -71,6 +71,18 @@ class TestConstructor:
         w2 = c.build([("S0", 1e7)], {"S0": 0.02}, None, report)
         assert w2["S0"] == pytest.approx(0.04)
 
+    def test_exit_of_dropped_name_not_frozen_by_missing_adv(self) -> None:
+        # the freeze bug: a name leaving the picks has no ADV entry; its exit
+        # must proceed, not be capped at zero movement
+        c = Constructor(top_n=1, position_cap=0.5, capital=1e7, no_trade_band=0.0)
+        report = ConstraintReport()
+        w = c.build([("NEW", 1e12)], {"OLD": 0.5}, None, report)
+        assert "OLD" not in w
+        # with the ADV known via adv_map, the exit IS participation-capped
+        w2 = c.build([("NEW", 1e12)], {"OLD": 0.5}, None, report, adv_map={"OLD": 1e7})
+        assert w2["OLD"] == pytest.approx(0.48)  # sold 2% of book, rest pending
+        assert w2["NEW"] == pytest.approx(0.5)
+
     def test_verification_flags_violation(self) -> None:
         report = ConstraintReport()
         c = Constructor(position_cap=0.06)
