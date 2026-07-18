@@ -41,7 +41,9 @@ futures hedge overlay, dashboard, research agent.**
 
 - [x] P0-P6 Track A · [x] P7 engine+parity · [x] P8 live build
   ([ ] 6-wk paper run — wall clock, needs daily scheduling)
-- [x] P9 US smoke · [ ] stretch: futures overlay / dashboard / agent
+- [x] P9 US smoke · Track B roadmap: docs/TRACK_B_PLAN.md
+  (B1 paper ops tooling → B2 Kite hardening → B3 real capital →
+  B4 futures overlay → B5 dashboard → B6 research agent)
 
 ## Rules
 1. Read `docs/PROJECT_PLAN.md` first. It is authoritative. When reality disagrees
