@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>artha</title>
+<style>
+  :root { color-scheme: light dark; --fg: #1a1a2e; --bg: #fafafa; --card: #fff;
+          --accent: #2563eb; --muted: #667; --line: #e5e7eb; }
+  @media (prefers-color-scheme: dark) {
+    :root { --fg: #e7e7ef; --bg: #101018; --card: #191924; --muted: #99a; --line: #2a2a38; }
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body { font: 14px/1.5 system-ui, sans-serif; color: var(--fg); background: var(--bg);
+         padding: 1.2rem; max-width: 1100px; margin: auto; }
+  h1 { font-size: 1.3rem; margin-bottom: .2rem; }
+  .sub { color: var(--muted); margin-bottom: 1rem; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+          gap: .7rem; margin-bottom: 1rem; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+          padding: .8rem 1rem; }
+  .kpi b { font-size: 1.25rem; display: block; }
+  .kpi span { color: var(--muted); font-size: .78rem; }
+  canvas { width: 100%; height: 260px; }
+  table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+  th, td { text-align: right; padding: .3rem .5rem; border-bottom: 1px solid var(--line); }
+  th:first-child, td:first-child { text-align: left; }
+  h2 { font-size: 1rem; margin: 1.2rem 0 .5rem; }
+  .err { color: #c33; }
+</style>
+</head>
+<body>
+<h1>artha</h1>
+<div class="sub">read-only run artifacts · localhost</div>
+<div class="grid" id="kpis"></div>
+<div class="card"><canvas id="chart"></canvas></div>
+<h2>Model study (walk-forward, net)</h2>
+<div class="card"><table id="models"></table></div>
+<h2>Paper log</h2>
+<div class="card"><table id="paper"></table></div>
+<h2>Trial ledger</h2>
+<div class="card"><table id="ledger"></table></div>
+<script>
+const fmt = (x, d=2) => x == null ? "—" : Number(x).toFixed(d);
+const pct = x => x == null ? "—" : (100 * x).toFixed(1) + "%";
+
+async function j(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(url + " " + r.status);
+  return r.json();
+}
+
+function kpi(label, value) {
+  return `<div class="card kpi"><b>${value}</b><span>${label}</span></div>`;
+}
+
+function table(el, rows, cols) {
+  const head = "<tr>" + cols.map(c => `<th>${c[0]}</th>`).join("") + "</tr>";
+  const body = rows.map(r =>
+    "<tr>" + cols.map(c => `<td>${c[1](r)}</td>`).join("") + "</tr>").join("");
+  document.getElementById(el).innerHTML = head + body;
+}
+
+function drawChart(series) {
+  const cv = document.getElementById("chart");
+  const dpr = window.devicePixelRatio || 1;
+  cv.width = cv.clientWidth * dpr; cv.height = cv.clientHeight * dpr;
+  const ctx = cv.getContext("2d"); ctx.scale(dpr, dpr);
+  const w = cv.clientWidth, h = cv.clientHeight, pad = 34;
+  const ys = series.map(p => p.tr_index);
+  const lo = Math.min(...ys), hi = Math.max(...ys);
+  const x = i => pad + (w - 2 * pad) * i / (series.length - 1);
+  const y = v => h - pad - (h - 2 * pad) * (v - lo) / (hi - lo);
+  ctx.strokeStyle = getComputedStyle(document.body).getPropertyValue("--line");
+  ctx.strokeRect(pad, pad, w - 2 * pad, h - 2 * pad);
+  ctx.strokeStyle = getComputedStyle(document.body).getPropertyValue("--accent");
+  ctx.lineWidth = 1.6; ctx.beginPath();
+  series.forEach((p, i) => i ? ctx.lineTo(x(i), y(p.tr_index)) : ctx.moveTo(x(i), y(p.tr_index)));
+  ctx.stroke();
+  ctx.fillStyle = getComputedStyle(document.body).getPropertyValue("--muted");
+  ctx.font = "11px system-ui";
+  ctx.fillText(series[0].trade_date, pad, h - 12);
+  ctx.fillText(series[series.length - 1].trade_date, w - pad - 60, h - 12);
+  ctx.fillText("NIFTY 500 synthetic TRI", pad, 20);
+}
+
+(async () => {
+  try {
+    const ts = await j("/api/tearsheet");
+    const s = ts.constructed_momentum;
+    document.getElementById("kpis").innerHTML =
+      kpi("net Sharpe", fmt(s.sharpe)) +
+      kpi("net CAGR", pct(s.cagr)) +
+      kpi("vol", pct(s.vol)) +
+      kpi("max drawdown", pct(s.max_drawdown)) +
+      kpi("DSR", fmt(ts.dsr)) +
+      kpi("ledger trials", ts.ledger_trials) +
+      kpi("constraint violations", (ts.constraint_violations || []).length);
+  } catch (e) { document.getElementById("kpis").innerHTML = `<div class="err">${e}</div>`; }
+
+  try {
+    const bench = await j("/api/benchmark");
+    drawChart(bench.filter((_, i) => i % 3 === 0));
+  } catch (e) { /* chart optional */ }
+
+  try {
+    const ms = await j("/api/model_study");
+    const rows = Object.entries(ms).filter(([k, v]) => v && v.net);
+    table("models", rows, [
+      ["model", r => r[0]],
+      ["IC", r => fmt(r[1].mean_ic, 4)],
+      ["net Sharpe", r => fmt(r[1].net.sharpe)],
+      ["net CAGR", r => pct(r[1].net.cagr)],
+      ["turnover", r => fmt(r[1].net.turnover_oneway_ann, 1) + "x"],
+      ["DSR", r => fmt(r[1].dsr)],
+    ]);
+  } catch (e) { document.getElementById("models").innerHTML = `<tr><td class="err">${e}</td></tr>`; }
+
+  try {
+    const log = await j("/api/paper_log");
+    table("paper", log.slice(-15).reverse(), [
+      ["date", r => r.trade_date],
+      ["equity", r => fmt(r.equity, 0)],
+      ["positions", r => r.n_positions],
+      ["orders", r => r.orders_submitted],
+      ["rejects", r => r.orders_rejected],
+      ["reconcile", r => r.reconcile_ok ? "ok" : "BREAK"],
+      ["dry", r => r.dry_run ? "y" : ""],
+    ]);
+  } catch (e) { document.getElementById("paper").innerHTML = `<tr><td class="err">${e}</td></tr>`; }
+
+  try {
+    const led = await j("/api/ledger");
+    table("ledger", led.slice(-12).reverse(), [
+      ["model", r => r.model],
+      ["features", r => r.feature_set],
+      ["label", r => r.label],
+      ["IC", r => fmt(r.mean_ic, 4)],
+      ["net Sharpe", r => fmt(r.net_sharpe)],
+      ["run", r => (r.run_at || "").slice(0, 10)],
+    ]);
+  } catch (e) { document.getElementById("ledger").innerHTML = `<tr><td class="err">${e}</td></tr>`; }
+})();
+</script>
+</body>
+</html>
