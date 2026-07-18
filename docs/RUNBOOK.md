@@ -40,6 +40,28 @@ order ids are deterministic per day).
 - Reset the paper book (before the real clock starts only): delete
   `paper_state.json` and `paper_log.jsonl`.
 
+## Dashboard (B5)
+
+`uv run --no-sync python scripts/run_dashboard.py [port]` — read-only
+FastAPI app on localhost (default 8787): tearsheet KPIs, benchmark
+chart, model study, paper log, trial ledger. No auth, no writes; do not
+expose beyond localhost.
+
+## Research agent (B6)
+
+`uv run --no-sync python scripts/run_research_agent.py [--n 3] [--offline]`
+— proposes candidate features (deterministic seeds offline; Groq when
+GROQ_API_KEY is set), screens each with the ridge quick protocol, and
+appends every screen to the trial ledger. Report lands in
+`reports/research_agent_<ts>.json`. A candidate only graduates to the
+feature library after a full model-study run by hand.
+
+## Futures hedge study (B4)
+
+`uv run --no-sync python scripts/backfill_fo.py 2021-01-01 <today>` then
+`uv run --no-sync python scripts/run_hedge_study.py` — hedged vs
+unhedged constructed momentum; gate |residual beta| < 0.1.
+
 ## B1 gate (from docs/TRACK_B_PLAN.md)
 
 30 consecutive logged sessions with zero reconciliation breaks, zero

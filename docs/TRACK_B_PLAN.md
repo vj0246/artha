@@ -80,11 +80,21 @@ beta-hedge sizing from the P5 attribution beta (0.59), hedged tearsheet.
 Gate: hedged backtest beta within +/-0.1 of zero; net Sharpe reported
 honestly vs unhedged.
 
+Status 2026-07-19: built (fo.py ingest both formats, front-month series
+with same-contract rolls, lagged rolling-beta overlay with per-side +
+roll costs). Basis/margin model simplified to a cost-rate model; margin
+financing stated as a limitation. Gate run: scripts/run_hedge_study.py.
+
 ## B5: Dashboard (stretch, ~2 sessions)
 
 FastAPI read-only API over reports/ + curated artifacts; Next.js 14 app:
 equity curves, paper log, risk reports, constraint history, ledger
 browser. No writes, no auth complexity (localhost first).
+
+Status 2026-07-19: shipped v1 as FastAPI + one dependency-free static
+page (src/artha/dashboard/, scripts/run_dashboard.py) instead of
+Next.js — zero node toolchain for a localhost read-only tool. Next.js
+remains the upgrade path if the dashboard grows interactive.
 
 ## B6: Research agent (stretch, ~2 sessions)
 
@@ -93,6 +103,15 @@ sandboxed module -> run the standard purged evaluation -> append to the
 trial ledger (DSR stays honest automatically). Offline only. First
 assignment: the parked daily-horizon event-reversal trial (P4's t=-6.9
 fade).
+
+Status 2026-07-19: shipped as a plain loop, not LangGraph (single
+linear propose->screen->ledger pass needs no graph state). Sandbox is
+an AST-whitelisted expression DSL rather than free codegen — narrower
+but auditable. Proposer: deterministic seeds offline, Groq gated on
+GROQ_API_KEY. First offline run screened 3 candidates vs the library
+baseline (IC 0.0419): best delta +0.0002 — none admitted. The
+event-reversal first assignment stays parked with VJ's item 3 (it needs
+the event-feature join, not the price DSL).
 
 ## Parked items owned by VJ (tracked, not scheduled)
 
