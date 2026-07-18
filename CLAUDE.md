@@ -21,7 +21,12 @@ null per plan 7.1. Synthetic TRI benchmarks + integrity scan shipped.
 P4 core code started (taxonomy + event-study framework committed).
 GPU note: CUDA torch via `uv pip install torch --index-url .../cu126
 --reinstall`; `uv sync` reverts it; run with `uv run --no-sync`.
-Next: P4 event alpha (PEAD, corpus event studies, Model A vs B).**
+P4 gate PASSED 2026-07-13 (docs/research/p4-event-alpha.md): 355k events
+classified (rule taxonomy, 81% audited accuracy, 4 systematic fixes);
+CARs significant but small with post-event FADE; PEAD INVERTED in India
+(top surprise quintile -213bps drift, t -6.9); Model A vs B = published
+null (events add no weekly alpha: delta Sharpe -0.05/-0.20). Next: P5
+portfolio construction + full validation + risk analytics.**
 
 - [x] P0 scaffold · [x] P1 data layer · [ ] P2 vectorized backtest + baselines
 - [ ] P3 ML alpha · [ ] P4 portfolio + risk · [ ] P5 event engine
