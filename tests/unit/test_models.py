@@ -91,7 +91,7 @@ class TestStudy:
         folds = walk_forward_folds(
             days, test_days=10, min_train_days=60, horizon_days=1, embargo_days=2
         )
-        from sklearn.linear_model import Ridge  # type: ignore[import-untyped]
+        from sklearn.linear_model import Ridge
 
         res = run_study(matrix, ["f1", "f2"], folds, lambda: Ridge(alpha=1.0), model_name="ridge")
         assert res.mean_ic > 0.5
