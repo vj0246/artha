@@ -28,12 +28,17 @@ momentum (caps/bands/ADV/vol-target 13.5%) — Sharpe 0.97, vol 13.45%
 IN BAND, maxDD halved to -27%, zero constraint violations, capacity
 flat to Rs 25Cr, beta 0.59/alpha 4%pa, DSR 0.64 @ 20 trials. Two bugs
 caught by the gate run: vol-target feedback loop (scale by unscaled
-book vol) and missing-ADV exit freeze (fail open). Next: P6 research
-report + survivorship before/after demo — closes Track A.**
+book vol) and missing-ADV exit freeze (fail open). P6 gate PASSED 2026-07-18 — TRACK A COMPLETE: survivorship bias
+measured (+2.5pp CAGR / +0.09 Sharpe from 816 erased delistings),
+ARTHA_RESEARCH_REPORT.md (publication bar addressed: DSR 0.64 < 95%
+bar, published as mixed), README rewritten results-first, blog draft
+in docs/research/. Next: Track B (P7 event engine + parity gate,
+P8 broker/OMS/paper trading, P9+ stretch).**
 
-- [x] P0 scaffold · [x] P1 data layer · [ ] P2 vectorized backtest + baselines
-- [ ] P3 ML alpha · [ ] P4 portfolio + risk · [ ] P5 event engine
-- [ ] P6 live paper · [ ] P7 real capital
+- [x] P0 scaffold · [x] P1+P1b data/events layer · [x] P2 baselines
+- [x] P3 model study · [x] P4 event alpha · [x] P5 portfolio+risk
+- [x] P6 research report (TRACK A DONE) · [ ] Track B: P7 engine+parity
+- [ ] P8 live paper · [ ] P9+ stretch
 
 ## Rules
 1. Read `docs/PROJECT_PLAN.md` first. It is authoritative. When reality disagrees
