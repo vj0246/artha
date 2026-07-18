@@ -28,17 +28,20 @@ momentum (caps/bands/ADV/vol-target 13.5%) — Sharpe 0.97, vol 13.45%
 IN BAND, maxDD halved to -27%, zero constraint violations, capacity
 flat to Rs 25Cr, beta 0.59/alpha 4%pa, DSR 0.64 @ 20 trials. Two bugs
 caught by the gate run: vol-target feedback loop (scale by unscaled
-book vol) and missing-ADV exit freeze (fail open). P6 gate PASSED 2026-07-18 — TRACK A COMPLETE: survivorship bias
-measured (+2.5pp CAGR / +0.09 Sharpe from 816 erased delistings),
-ARTHA_RESEARCH_REPORT.md (publication bar addressed: DSR 0.64 < 95%
-bar, published as mixed), README rewritten results-first, blog draft
-in docs/research/. Next: Track B (P7 event engine + parity gate,
-P8 broker/OMS/paper trading, P9+ stretch).**
+book vol) and missing-ADV exit freeze (fail open). TRACK A COMPLETE 2026-07-18 (P0-P6; survivorship +2.5pp measured,
+report + README + blog in repo). TRACK B BUILT 2026-07-18
+(docs/research/p7-p9-track-b.md): P7 event engine + PARITY GATE in CI
+(fractional agrees to <2e-5/day; integer bounded by rounding); P8 live
+layer complete (PaperBroker, key-gated KiteAdapter, OMS with
+idempotent ids + pre-trade checks, kill switch, reconcile, Telegram,
+run_paper_day.py dry-run verified on real data) — 6-week paper clock
+starts when the runbook is scheduled daily; P9 US portability smoke
+passed (us_stub.py, pipeline unchanged). Remaining optional stretch:
+futures hedge overlay, dashboard, research agent.**
 
-- [x] P0 scaffold · [x] P1+P1b data/events layer · [x] P2 baselines
-- [x] P3 model study · [x] P4 event alpha · [x] P5 portfolio+risk
-- [x] P6 research report (TRACK A DONE) · [ ] Track B: P7 engine+parity
-- [ ] P8 live paper · [ ] P9+ stretch
+- [x] P0-P6 Track A · [x] P7 engine+parity · [x] P8 live build
+  ([ ] 6-wk paper run — wall clock, needs daily scheduling)
+- [x] P9 US smoke · [ ] stretch: futures overlay / dashboard / agent
 
 ## Rules
 1. Read `docs/PROJECT_PLAN.md` first. It is authoritative. When reality disagrees
