@@ -17,6 +17,7 @@ Portfolio: top N by score among names in the PIT universe at t, equal
 weight, long-only, fully invested (cash earns zero, plan section 8 v1).
 """
 
+import math
 from dataclasses import dataclass
 from datetime import date
 from typing import cast
@@ -24,8 +25,17 @@ from typing import cast
 import polars as pl
 
 from artha.marketspec.base import MarketSpec
+from artha.portfolio.construct import ConstraintReport, Constructor
 
 ADV_WINDOW = 21
+VOL_LOOKBACK = 21
+
+
+def _ann_vol(returns: list[float]) -> float:
+    n = len(returns)
+    mean = sum(returns) / n
+    var = sum((r - mean) ** 2 for r in returns) / (n - 1)
+    return math.sqrt(var * 252)
 
 
 @dataclass(frozen=True)
@@ -45,10 +55,17 @@ def run_backtest(
     top_n: int = 25,
     exec_lag: int = 1,
     capital: float = 0.0,
+    constructor: Constructor | None = None,
+    report: ConstraintReport | None = None,
 ) -> BacktestResult:
     """``panel`` needs canon_symbol, trade_date, adj_close, traded_value,
     in_universe. ``signal``: (canon_symbol, trade_date, score). ``capital``
-    in rupees activates impact costs (0 = charges only)."""
+    in rupees activates impact costs (0 = charges only).
+
+    With a ``constructor``, targets come from the constrained construction
+    (caps, bands, vol targeting; possibly gross < 1 with the rest in cash)
+    instead of naive top-N equal weight; pass a ConstraintReport to collect
+    per-rebalance verification results."""
     px = panel.select(
         "canon_symbol", "trade_date", "adj_close", "traded_value", "in_universe"
     ).sort("canon_symbol", "trade_date")
@@ -97,10 +114,12 @@ def run_backtest(
             if rets is not None:
                 ret_map = dict(zip(rets["canon_symbol"], rets["ret"], strict=True))
                 gross = sum(w * ret_map.get(n, 0.0) for n, w in weights.items())
-                drifted = {n: w * (1 + ret_map.get(n, 0.0)) for n, w in weights.items()}
-                total = sum(drifted.values())
-                if total > 0:
-                    weights = {n: w / total for n, w in drifted.items()}
+                # cash-aware drift: portfolio grows by `gross` (cash earns 0),
+                # each position by its own return
+                if 1 + gross > 0:
+                    weights = {
+                        n: w * (1 + ret_map.get(n, 0.0)) / (1 + gross) for n, w in weights.items()
+                    }
 
         # 2) execute a due rebalance at this day's close
         turnover = 0.0
@@ -139,15 +158,30 @@ def run_backtest(
             picks = (
                 scored.filter(pl.col("trade_date") == day)
                 .sort("score", descending=True)
-                .head(top_n)
+                .head(constructor.top_n if constructor else top_n)
             )
             if picks.height:
-                w = 1.0 / picks.height
-                pending = (i + exec_lag, dict.fromkeys(picks["canon_symbol"], w))
                 adv.update(zip(picks["canon_symbol"], picks["adv_value"], strict=True))
+                if constructor is None:
+                    w = 1.0 / picks.height
+                    target = dict.fromkeys(picks["canon_symbol"], w)
+                else:
+                    trailing = [r["net_return"] for r in daily_rows[-VOL_LOOKBACK:]]
+                    realized = (
+                        _ann_vol(cast(list[float], trailing))
+                        if len(trailing) >= VOL_LOOKBACK
+                        else None
+                    )
+                    target = constructor.build(
+                        list(zip(picks["canon_symbol"], picks["adv_value"], strict=True)),
+                        dict(weights),
+                        realized,
+                        report if report is not None else ConstraintReport(),
+                    )
+                pending = (i + exec_lag, target)
                 holding_rows.extend(
-                    {"rebalance_date": day, "canon_symbol": s, "weight": w}
-                    for s in picks["canon_symbol"]
+                    {"rebalance_date": day, "canon_symbol": s, "weight": tw}
+                    for s, tw in target.items()
                 )
 
     return BacktestResult(
