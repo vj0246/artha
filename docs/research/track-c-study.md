@@ -5,8 +5,8 @@ Date: 2026-07-19 (numbers below are the CLEAN-DATA rerun — see
 selection, top 25, full Indian costs, T+1-close execution, Rs 25L,
 caps + vol targeting, 2012-2026. All 13 configurations appended to the
 trial ledger before results were read. Reports:
-`construction_v2_20260719T151054Z.json`, `spa_20260719T151108Z.json`,
-`regime_study_20260719T151123Z.json`.
+`construction_v2_20260719T162345Z.json`, `spa_20260719T162355Z.json`,
+`regime_study_20260719T162407Z.json`.
 
 ## C2 + C3: construction v2 (Ledoit-Wolf weights x trading speed)
 
@@ -25,12 +25,12 @@ Zero constraint violations in every configuration.
 
 **The DeMiguel 1/N null is REJECTED on this book**: both risk-model
 schemes beat equal weight, and the Ledoit-Wolf minimum-variance tilt is
-the larger effect (+0.08 Sharpe, drawdown −27% -> −19%) — consistent
+the larger effect (+0.13 Sharpe, drawdown −27% -> −19%) — consistent
 with Clarke-de Silva-Thorley: long-only min-var keeps the return and
 sheds the vol. Gârleanu-Pedersen partial adjustment at tau 0.5 removes
 ~30% of turnover at unchanged-or-better Sharpe versus bands (bands'
 bang-bang trading is the pure cost). The combined **minvar + tau 0.5 is
-the new best construction: Sharpe 1.055, maxDD −21%, turnover 3.8x** —
+the new best construction: Sharpe 1.119, maxDD −21%, turnover 3.8x** —
 sixteen hundredths of Sharpe and six drawdown points over the P5
 config from construction alone, same signal, same costs. (The tainted
 first run understated min-var at 1.055: phantom CA returns inflate
@@ -85,7 +85,7 @@ override lever for live risk management.
 13 trials appended (8 construction, 3 regime, 2 baselines regenerated
 for SPA context). The SPA test itself consumed the family rather than a
 cherry-picked winner; the minvar+tau0.5 promotion claim should be read
-against SPA p = 0.046 for the family, not against a fresh single-trial
+against SPA p = 0.0445 for the family, not against a fresh single-trial
 p-value.
 
 ## C5 (execution study): blocked on Kite credentials, foundation shipped
