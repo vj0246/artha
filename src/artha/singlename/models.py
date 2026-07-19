@@ -52,7 +52,7 @@ class _Recurrent(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         out, _ = self.rnn(x.unsqueeze(-1))
-        return self.head(out[:, -1, :])
+        return torch.as_tensor(self.head(out[:, -1, :]))
 
 
 class _TinyTransformer(nn.Module):
@@ -68,7 +68,7 @@ class _TinyTransformer(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         h = self.proj(x.unsqueeze(-1)) + self.pos
-        return self.head(self.enc(h)[:, -1, :])
+        return torch.as_tensor(self.head(self.enc(h)[:, -1, :]))
 
 
 def _torch_factory(kind: str) -> Callable[[np.ndarray, np.ndarray, int], object]:
@@ -84,7 +84,7 @@ def predict_torch(model: object, x: np.ndarray) -> np.ndarray:
     device = next(model.parameters()).device
     with torch.no_grad():
         out = model(torch.tensor(x, dtype=torch.float32, device=device))
-    return out.squeeze(-1).cpu().numpy().astype(np.float64)
+    return np.asarray(out.squeeze(-1).cpu().numpy(), dtype=np.float64)
 
 
 def fit_ridge(x: np.ndarray, y: np.ndarray, seed: int) -> object:
