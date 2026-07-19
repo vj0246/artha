@@ -100,6 +100,17 @@ over the new per-fill orders_log.jsonl — currently degenerate by
 construction with close-fill quotes, activates with B2's kite_ltp).
 GATE ITSELF waits on B1 + B2 gates + funded capital.
 
+Readiness evaluation added 2026-07-19 (scripts/run_live_readiness.py,
+run weekly): ops discipline, live-vs-research tracking error, execution
+quality, risk conformance (vol band + Kupiec VaR test), small-sample
+statistics (PSR, minimum track record length), and sizing backtests.
+First run (2019-2026 window): Rs 1L is NOT viable — flat DP charge is
+38bps per sell and one share at the median book price is a 5.2% weight
+step (net Sharpe 1.03 vs 1.15 at 5L). Minimum viable capital Rs 2L
+(19bps DP, 2.6% step, Sharpe 1.11); Rs 5L is where sizing frictions
+stop mattering (8bps, 1.0%, Sharpe 1.15). Plan's "Rs 1-2L" funding line
+should read "Rs 2L minimum, Rs 5L preferred".
+
 ## B4: NIFTY futures hedge overlay (stretch, ~2 sessions)
 
 F&O bhavcopy ingest (UDiFF derivatives file, same raw-zone discipline),
