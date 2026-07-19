@@ -17,6 +17,7 @@ dependencies = [
     "scipy>=1.18.0",
     "torch>=2.13.0",
     "uvicorn>=0.51.0",
+    "vadersentiment>=3.3.2",
 ]
 
 [dependency-groups]

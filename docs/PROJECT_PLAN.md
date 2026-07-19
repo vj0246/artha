@@ -41,6 +41,14 @@ design, cost model, QA discipline, verify-list).
   liquidity rank 2, vol 30.8% mid-band, unbroken history), causal-vs-leaky decomposition
   preprocessing study, unconstrained model family, free Indian news-sentiment pipeline
   (GDELT + RSS + announcement corpus), drift/regime honesty. Cross-sectional book unchanged.
+- 2026-07-19 (later): D2 EXECUTED — decomposition preprocessing is look-ahead: EMD/CEEMDAN
+  leaky reproduces the literature's IC 0.41 / Sharpe 3.15 and causal re-decomposition
+  collapses it to ~0 (docs/research/d2-preprocessing.md). D3/D5 model family + drift arms
+  launched. D4 news pipeline LIVE: RSS collector wired into the daily cycle (non-critical
+  step) + GDELT historical backfill; VADER sentiment scored at ingest. Dashboard: real-time
+  1s IST clock + NSE session state, 10s artifact refresh, per-chart explanatory captions.
+  docs/SYSTEM_OVERVIEW.md added as the single full-system document. Millisecond data
+  recorded as credential-gated (Kite) and out of the validated EOD edge's scope.
 
 ---
 

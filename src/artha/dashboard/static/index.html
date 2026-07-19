@@ -97,9 +97,16 @@
 <body>
 <header>
   <h1>artha</h1>
-  <span class="live"><span class="dot"></span><span id="live-label">live · refreshing</span></span>
+  <span class="live"><span class="dot"></span><span id="live-label">live</span></span>
+  <span class="live" id="ist-clock" title="real-time IST clock (1s tick); NSE session 09:15-15:30">—</span>
+  <span class="live" id="mkt-state">—</span>
   <span class="asof" id="asof"></span>
 </header>
+<div class="note" style="margin:-.4rem 0 .8rem">
+  Artifacts refresh every 10s from disk (they change once per daily 19:00 cycle);
+  the clock is real time. Millisecond market data needs the Kite feed — lights up
+  automatically once KITE credentials exist (B2).
+</div>
 
 <div class="filters" id="range-filters" role="group" aria-label="date range">
   <button data-days="365">1Y</button>
@@ -113,12 +120,14 @@
 <div class="grid2">
   <div class="card chart-wrap">
     <h3>Growth of 100 — strategy backdrop</h3>
+    <div class="note">What: the market the strategy trades in, indexed to 100 (dividends included). Why: every strategy number on this page should be judged against simply holding this line. The paper book overlays in green once two live sessions exist.</div>
     <div id="chart-tri"></div>
     <div class="legend" id="legend-tri"></div>
     <details><summary>data (monthly)</summary><table id="tri-table"></table></details>
   </div>
   <div class="card">
     <h3>Go-live checklist</h3>
+    <div class="note">The six conditions real money waits for. Grey = waiting on wall clock or credentials, never on code.</div>
     <div id="checklist"></div>
     <div class="note" id="b1-progress"></div>
   </div>
@@ -127,11 +136,13 @@
 <div class="grid2">
   <div class="card chart-wrap">
     <h3>Construction v2 — net Sharpe by config (Track C)</h3>
+    <div class="note">What: the same stock-picking signal packaged eight ways (weights x trading rule). Why: proves how much return per unit of risk comes from portfolio engineering alone — hover a bar for its full stats.</div>
     <div id="chart-construction"></div>
     <div class="note" id="construction-note"></div>
   </div>
   <div class="card">
     <h3>Statistical honesty</h3>
+    <div class="note">Could these results be luck from trying many things? SPA/RC test the whole family jointly; below 0.05 means the edge survives that suspicion.</div>
     <div id="honesty"></div>
   </div>
 </div>
@@ -139,22 +150,27 @@
 <div class="grid2">
   <div class="card chart-wrap">
     <h3>Net Sharpe by funded capital (readiness sizing)</h3>
+    <div class="note">What: performance at different account sizes with ALL small-account frictions charged. Why: answers "how much money do I need for this to work" — hover for the DP-charge and lot-size damage per level.</div>
     <div id="chart-sizing"></div>
     <div class="note">full-cost backtests 2019-2026; DP charges + integer shares included</div>
   </div>
   <div class="card">
     <h3>Futures hedge (B4)</h3>
+    <div class="note">Removing market exposure with NIFTY futures: lower risk, lower return. A dial for crisis periods, not an always-on switch.</div>
     <div id="hedge"></div>
   </div>
 </div>
 
 <h2>Model study — walk-forward, net of costs</h2>
+<div class="note">Four ML models against simple factor baselines under one leak-proof protocol. The honest finding: none beat momentum after costs — knowing this is worth more than pretending otherwise.</div>
 <div class="card"><table id="models"></table></div>
 
 <h2>Paper sessions</h2>
+<div class="note">The daily automated trading log (simulated money, real prices, real rules). 30 clean consecutive sessions unlock the next gate; any reconcile BREAK freezes trading.</div>
 <div class="card"><table id="paper"></table></div>
 
 <h2>Trial ledger</h2>
+<div class="note">Every experiment ever run, including failures — the statistics above are only honest because losers are counted.</div>
 <div class="card"><table id="ledger"></table></div>
 
 <div class="tooltip" id="tt"></div>
@@ -554,8 +570,23 @@ $("range-filters").addEventListener("click", ev => {
   renderTri();
 });
 window.addEventListener("resize", () => { renderTri(); renderSizing(); renderConstruction(); });
+function tickClock() {
+  const now = new Date();
+  const ist = new Date(now.getTime() + (330 + now.getTimezoneOffset()) * 60_000);
+  const hh = String(ist.getHours()).padStart(2, "0");
+  const mm = String(ist.getMinutes()).padStart(2, "0");
+  const ss = String(ist.getSeconds()).padStart(2, "0");
+  $("ist-clock").textContent = `${hh}:${mm}:${ss} IST`;
+  const mins = ist.getHours() * 60 + ist.getMinutes();
+  const wd = ist.getDay();
+  const open = wd >= 1 && wd <= 5 && mins >= 555 && mins < 930;
+  $("mkt-state").textContent = open ? "NSE OPEN" : "NSE closed";
+  $("mkt-state").style.color = open ? css("--good") : css("--muted");
+}
+tickClock();
+setInterval(tickClock, 1_000);
 refresh();
-setInterval(refresh, 60_000);
+setInterval(refresh, 10_000);
 </script>
 </body>
 </html>
