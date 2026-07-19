@@ -47,9 +47,11 @@ screen — first run: 3 candidates, none beat library IC 0.0419).**
 - [x] P0-P6 Track A · [x] P7 engine+parity · [x] P8 live build
   ([ ] 6-wk paper run — wall clock, needs daily scheduling)
 - [x] P9 US smoke · Track B roadmap: docs/TRACK_B_PLAN.md
-  ([x] B1 paper ops tooling → B2 Kite hardening (needs credentials) →
-  B3 real capital · [x] B4 futures overlay · [x] B5 dashboard ·
-  [x] B6 research agent)
+  ([x] B1 tooling · [x] B2 code (gate: creds + 1wk clean reconcile) ·
+  [x] B3 code (gate: B1+B2 + 4wk live) · [x] B4 · [x] B5 · [x] B6).
+  ALL Track B code built 2026-07-19; only VJ's credentials and wall
+  clocks remain. Verify-list dated 2026-07-19: NSE txn charge updated
+  0.00297%→0.00307%; SEBI retail-algo 10 orders/sec threshold n/a.
 
 ## Rules
 1. Read `docs/PROJECT_PLAN.md` first. It is authoritative. When reality disagrees
