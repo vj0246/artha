@@ -25,6 +25,23 @@ local edits during P1.
 Everything not mentioned in a section below carries over from v1 unchanged (MarketSpec, storage
 design, cost model, QA discipline, verify-list).
 
+### Post-v2 execution changelog (kept current so VJ can follow every change)
+
+- 2026-07-18: Track A complete (P0-P6); Track B built (P7-P9). Details in CLAUDE.md tracker
+  and docs/research/.
+- 2026-07-19: Track B operations live (B1 clock started, daily 19:00 task); B2/B3 code built
+  ahead of credentials; B4-B6 stretch done. docs/TRACK_B_PLAN.md.
+- 2026-07-19: Track C research v2 executed (docs/TRACK_C_PLAN.md, ADR 0006): Ledoit-Wolf
+  min-var + Garleanu-Pedersen tau 0.5 replaces equal-weight+bands as the production
+  construction (net Sharpe 1.12 vs 0.96, maxDD -21% vs -27%); Hansen SPA p = 0.0445 for the
+  family vs the synthetic TRI; regime-gate null published. Declared-CA sanity gate added to
+  the adjuster after six phantom split declarations were caught (TVSMOTOR et al.).
+- 2026-07-19: Track D adopted (docs/TRACK_D_PLAN.md, ADR 0007): single-name laboratory —
+  ticker LOCKED by D1 screen 2026-07-19: ICICIBANK (composite 0.896 vs RELIANCE 0.767 —
+  liquidity rank 2, vol 30.8% mid-band, unbroken history), causal-vs-leaky decomposition
+  preprocessing study, unconstrained model family, free Indian news-sentiment pipeline
+  (GDELT + RSS + announcement corpus), drift/regime honesty. Cross-sectional book unchanged.
+
 ---
 
 ## 0. Locked scope (updated)
