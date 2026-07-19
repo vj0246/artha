@@ -50,7 +50,10 @@ screen — first run: 3 candidates, none beat library IC 0.0419).**
   ([x] B1 tooling · [x] B2 code (gate: creds + 1wk clean reconcile) ·
   [x] B3 code (gate: B1+B2 + 4wk live) · [x] B4 · [x] B5 · [x] B6).
   ALL Track B code built 2026-07-19; only VJ's credentials and wall
-  clocks remain. Verify-list dated 2026-07-19: NSE txn charge updated
+  clocks remain. TRACK C EXECUTED 2026-07-19 (docs/TRACK_C_PLAN.md +
+  docs/research/track-c-study.md): minvar+tau0.5 construction wins
+  (Sharpe 1.055, DD -21%); SPA p=0.046 family beats TRI; regime-gate
+  null published; C5 blocked on creds. Verify-list dated 2026-07-19: NSE txn charge updated
   0.00297%→0.00307%; SEBI retail-algo 10 orders/sec threshold n/a.
 
 ## Rules

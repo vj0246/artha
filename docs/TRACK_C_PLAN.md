@@ -163,6 +163,18 @@ gate; evaluated inside the same C4 script and gate.
 
 ---
 
+## Status 2026-07-19: C1-C4+C6 EXECUTED (docs/research/track-c-study.md)
+
+C2+C3 GATE PASSED with a winner: minvar + tau 0.5 — Sharpe 1.055 vs
+0.960 shipped, maxDD -21.2% vs -27.1%, turnover 3.8x vs 5.2x. DeMiguel
+1/N null REJECTED on this book. C1: RC p = 0.0125, SPA p = 0.046 — the
+family beats the synthetic TRI at 5% after snooping correction. C4+C6:
+NULL PUBLISHED — vol targeting already captures the crash premium; DM
+gate trades 0.05 Sharpe for 4.5 DD points (MAR wash), crowding input
+subtracts. Live paper stays on equal+bands until the B1 clock ends;
+minvar+tau0.5 adoption = one line + clock restart (VJ's call). C5
+still blocked on credentials.
+
 ## Sequencing and gates
 
 C2 + C3 first (one "construction v2" study: shared backtests, one
