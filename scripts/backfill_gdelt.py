@@ -23,7 +23,7 @@ from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 API = "https://api.gdeltproject.org/api/v2/doc/doc"
 QUERY = '"ICICI Bank"'
 MAX_RECORDS = 250
-SLEEP_S = 6.0  # GDELT free-tier politeness
+SLEEP_S = 20.0  # GDELT free-tier politeness (6s drew 429s on long runs)
 
 
 def month_range(start: str, end: str) -> list[tuple[str, str]]:
@@ -70,7 +70,7 @@ def main() -> int:
                 data = resp.json()
             except (httpx.HTTPError, json.JSONDecodeError) as exc:
                 print(f"WARNING: {lo[:6]} failed: {exc}", file=sys.stderr)
-                time.sleep(SLEEP_S)
+                time.sleep(SLEEP_S * 3)  # back off harder after a rejection
                 continue
             snap.write_text(json.dumps(data), encoding="utf-8")
             articles = data.get("articles", [])
