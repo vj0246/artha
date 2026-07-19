@@ -49,7 +49,12 @@ design, cost model, QA discipline, verify-list).
   1s IST clock + NSE session state, 10s artifact refresh, per-chart explanatory captions.
   docs/SYSTEM_OVERVIEW.md added as the single full-system document; docs/HANDBOOK.md added
   as the complete new-maintainer onboarding (every file, every choice, from-scratch bootstrap,
-  gotchas) — the project is now carry-forwardable without any verbal handover. Millisecond data
+  gotchas) — the project is now carry-forwardable without any verbal handover.
+- 2026-07-20: D3/D5 EXECUTED — comprehensive null (docs/research/d3-d5-models.md): no model
+  in the family (ridge/LGBM/GRU/LSTM/transformer/ensemble) beats always-long on ICICIBANK
+  net of costs, under expanding OR rolling windows; OOS ICs ~0. Single-name lab conclusion:
+  D2 leaky-preprocessing artifact + D3 efficient floor. No single-name model ships; the
+  cross-sectional book remains the edge. D4 sentiment evaluation pending GDELT completion. Millisecond data
   recorded as credential-gated (Kite) and out of the validated EOD edge's scope.
 
 ---
