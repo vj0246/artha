@@ -80,6 +80,21 @@ def research_agent() -> dict[str, Any]:
     return _latest("research_agent_*.json")
 
 
+@app.get("/api/construction")
+def construction() -> dict[str, Any]:
+    return _latest("construction_v2_*.json")
+
+
+@app.get("/api/spa")
+def spa() -> dict[str, Any]:
+    return _latest("spa_*.json")
+
+
+@app.get("/api/regime")
+def regime() -> dict[str, Any]:
+    return _latest("regime_study_*.json")
+
+
 @app.get("/api/ledger")
 def ledger() -> list[dict[str, Any]]:
     settings = load_settings()

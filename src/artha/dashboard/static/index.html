@@ -126,6 +126,18 @@
 
 <div class="grid2">
   <div class="card chart-wrap">
+    <h3>Construction v2 — net Sharpe by config (Track C)</h3>
+    <div id="chart-construction"></div>
+    <div class="note" id="construction-note"></div>
+  </div>
+  <div class="card">
+    <h3>Statistical honesty</h3>
+    <div id="honesty"></div>
+  </div>
+</div>
+
+<div class="grid2">
+  <div class="card chart-wrap">
     <h3>Net Sharpe by funded capital (readiness sizing)</h3>
     <div id="chart-sizing"></div>
     <div class="note">full-cost backtests 2019-2026; DP charges + integer shares included</div>
@@ -306,19 +318,67 @@ function tile(label, value, sub = "", cls = "") {
 }
 
 function renderTiles() {
-  const {ts, log, readiness} = state.data;
+  const {ts, log, readiness, construction, ledger} = state.data;
   const el = $("tiles"); el.replaceChildren();
+  const live = construction?.minvar_tau50;
   const s = ts?.constructed_momentum || {};
   const liveRows = (log || []).filter(r => !r.dry_run);
   const last = liveRows[liveRows.length - 1];
   el.append(
-    tile("net Sharpe (research)", fmt(s.sharpe), "DSR " + fmt(ts?.dsr), ""),
-    tile("net CAGR", pct(s.cagr), "vol " + pct(s.vol)),
-    tile("max drawdown", pct(s.max_drawdown), "capacity flat to ₹25Cr"),
-    tile("paper equity", last ? rs(last.equity) : "—", last ? last.n_positions + " positions" : "clock not started"),
+    live
+      ? tile("net Sharpe (live config)", fmt(live.sharpe), "minvar + τ0.5 · was " + fmt(s.sharpe) + " equal", "up")
+      : tile("net Sharpe (research)", fmt(s.sharpe), "DSR " + fmt(ts?.dsr), ""),
+    tile("net CAGR", pct(live?.cagr ?? s.cagr), "vol " + pct(live?.vol ?? s.vol)),
+    tile("max drawdown", pct(live?.max_drawdown ?? s.max_drawdown), live ? "was " + pct(s.max_drawdown) + " equal-weight" : "capacity flat to ₹25Cr"),
+    tile("paper equity", last ? rs(last.equity) : "—", last ? last.n_positions + " positions" : "clock restarts 19:00"),
     tile("B1 clock", liveRows.length + "/30", (readiness?.operations?.missed_sessions?.length || 0) + " missed", liveRows.length ? "up" : ""),
-    tile("ledger trials", ts?.ledger_trials ?? "—", "every experiment counted"),
+    tile("ledger trials", (ledger || []).length || (ts?.ledger_trials ?? "—"), "every experiment counted"),
   );
+}
+
+function renderConstruction() {
+  const cv = state.data.construction;
+  if (!cv) return;
+  const bars = Object.entries(cv)
+    .filter(([k, v]) => k !== "run_at" && v && v.sharpe != null)
+    .map(([k, v]) => ({
+      label: k.replace("_bands", "·b").replace("_tau", "·τ").replace("equal", "eq")
+              .replace("minvar", "mv").replace("ivol", "iv"),
+      y: v.sharpe,
+      detail: {
+        config: k + (k === "minvar_tau50" ? " (LIVE)" : ""),
+        "net Sharpe": fmt(v.sharpe, 3),
+        "net CAGR": pct(v.cagr),
+        "max DD": pct(v.max_drawdown),
+        turnover: fmt(v.turnover_oneway_ann, 1) + "×",
+      },
+    }));
+  barChart($("chart-construction"), bars);
+  $("construction-note").textContent =
+    "LW min-var + GP τ0.5 is the live config since 2026-07-19; clean-data rerun after the CA sanity gate removed 6 phantom splits";
+}
+
+function renderHonesty() {
+  const {spa, regime, ts} = state.data;
+  const el = $("honesty"); el.replaceChildren();
+  const rows = [];
+  if (spa) {
+    rows.push(["Hansen SPA p-value", fmt(spa.spa_p_value, 4) + (spa.spa_p_value < 0.05 ? " ✓ beats TRI" : "")]);
+    rows.push(["White RC p-value", fmt(spa.rc_p_value, 4)]);
+    rows.push(["best vs benchmark", spa.best_strategy + " +" + pct(spa.best_mean_excess_ann)]);
+  }
+  if (ts) rows.push(["deflated Sharpe (DSR)", fmt(ts.dsr)]);
+  if (regime?.dm_gate) rows.push(["regime gate", "NULL published (Sharpe " + fmt(regime.dm_gate.sharpe) + " vs " + fmt(regime.baseline_voltarget?.sharpe) + ")"]);
+  const tbl = document.createElement("table");
+  for (const [k, v] of rows) {
+    const r = tbl.insertRow();
+    const c1 = r.insertCell(); c1.textContent = k;
+    const c2 = r.insertCell(); c2.textContent = v;
+  }
+  el.appendChild(tbl);
+  const note = document.createElement("div"); note.className = "note";
+  note.textContent = "every trial in the ledger before its result is read; nulls published as nulls";
+  el.appendChild(note);
 }
 
 function renderTri() {
@@ -475,11 +535,13 @@ async function refresh() {
   const jobs = {
     ts: "/api/tearsheet", bench: "/api/benchmark", ms: "/api/model_study",
     log: "/api/paper_log", ledger: "/api/ledger", readiness: "/api/readiness", hedge: "/api/hedge",
+    construction: "/api/construction", spa: "/api/spa", regime: "/api/regime",
   };
   await Promise.all(Object.entries(jobs).map(async ([k, url]) => {
     try { state.data[k] = await j(url); } catch { if (!(k in state.data)) state.data[k] = null; }
   }));
-  renderTiles(); renderTri(); renderChecklist(); renderSizing(); renderHedge(); renderTables();
+  renderTiles(); renderTri(); renderChecklist(); renderConstruction(); renderHonesty();
+  renderSizing(); renderHedge(); renderTables();
   $("asof").textContent = "as of " + new Date().toLocaleTimeString();
   $("live-label").textContent = "live · 60s refresh";
 }
@@ -491,7 +553,7 @@ $("range-filters").addEventListener("click", ev => {
   state.days = +b.dataset.days;
   renderTri();
 });
-window.addEventListener("resize", () => { renderTri(); renderSizing(); });
+window.addEventListener("resize", () => { renderTri(); renderSizing(); renderConstruction(); });
 refresh();
 setInterval(refresh, 60_000);
 </script>

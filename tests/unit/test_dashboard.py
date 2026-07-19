@@ -60,6 +60,9 @@ def test_missing_report_is_404(client: TestClient) -> None:
     assert client.get("/api/benchmark").status_code == 404
     assert client.get("/api/readiness").status_code == 404
     assert client.get("/api/hedge").status_code == 404
+    assert client.get("/api/construction").status_code == 404
+    assert client.get("/api/spa").status_code == 404
+    assert client.get("/api/regime").status_code == 404
 
 
 def test_readiness_and_hedge_serve_latest(client: TestClient, tmp_path: Path) -> None:
@@ -74,3 +77,11 @@ def test_readiness_and_hedge_serve_latest(client: TestClient, tmp_path: Path) ->
         "b1_30_clean_sessions": False
     }
     assert client.get("/api/hedge").json()["gate_pass"] is True
+    (reports / "construction_v2_20260101T000000Z.json").write_text(
+        json.dumps({"minvar_tau50": {"sharpe": 1.119}}), encoding="utf-8"
+    )
+    (reports / "spa_20260101T000000Z.json").write_text(
+        json.dumps({"spa_p_value": 0.0445}), encoding="utf-8"
+    )
+    assert client.get("/api/construction").json()["minvar_tau50"]["sharpe"] == 1.119
+    assert client.get("/api/spa").json()["spa_p_value"] == 0.0445
