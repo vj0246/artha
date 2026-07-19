@@ -61,6 +61,16 @@ for at least a week before any live order. Never places orders.
 freeze -> flatten on a scratch copy of the paper book; evidence in
 kill_drills.jsonl. Real state never touched.
 
+## Live readiness evaluation (B3 go/no-go)
+
+`uv run --no-sync python scripts/run_live_readiness.py` — run weekly
+during paper and before/while live. Six sections: operations discipline,
+live-vs-research tracking error, execution quality, risk conformance
+(vol band, drawdown rails, Kupiec VaR test), small-sample statistics
+(PSR + minimum track record length), and capital sizing with flat DP
+charges + integer-share granularity. Prints the go-live checklist; all
+items true = GO candidate.
+
 ## Slippage report (B3 feedback loop)
 
 `uv run --no-sync python scripts/run_slippage_report.py` — realized vs

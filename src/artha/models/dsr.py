@@ -8,7 +8,7 @@ length in the same periods.
 
 import math
 
-from scipy.stats import norm  # type: ignore[import-untyped]
+from scipy.stats import norm
 
 _EULER_GAMMA = 0.5772156649015329
 

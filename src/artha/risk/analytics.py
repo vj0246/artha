@@ -11,7 +11,7 @@ from typing import cast
 
 import numpy as np
 import polars as pl
-from scipy.stats import kurtosis, norm, skew  # type: ignore[import-untyped]
+from scipy.stats import kurtosis, norm, skew
 
 TRADING_DAYS = 252
 
