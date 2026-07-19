@@ -8,6 +8,7 @@ Prado-grade statistics, running live paper operations daily, and honest
 about what did not work.
 
 **Full study: [docs/research/ARTHA_RESEARCH_REPORT.md](docs/research/ARTHA_RESEARCH_REPORT.md)
+· New-maintainer handbook: [docs/HANDBOOK.md](docs/HANDBOOK.md)
 · Live-ops plan: [docs/TRACK_B_PLAN.md](docs/TRACK_B_PLAN.md)**
 
 ## Headline results (net of full Indian costs, 2012-2026)

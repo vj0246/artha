@@ -47,7 +47,9 @@ design, cost model, QA discipline, verify-list).
   launched. D4 news pipeline LIVE: RSS collector wired into the daily cycle (non-critical
   step) + GDELT historical backfill; VADER sentiment scored at ingest. Dashboard: real-time
   1s IST clock + NSE session state, 10s artifact refresh, per-chart explanatory captions.
-  docs/SYSTEM_OVERVIEW.md added as the single full-system document. Millisecond data
+  docs/SYSTEM_OVERVIEW.md added as the single full-system document; docs/HANDBOOK.md added
+  as the complete new-maintainer onboarding (every file, every choice, from-scratch bootstrap,
+  gotchas) — the project is now carry-forwardable without any verbal handover. Millisecond data
   recorded as credential-gated (Kite) and out of the validated EOD edge's scope.
 
 ---
