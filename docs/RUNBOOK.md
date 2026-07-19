@@ -1,18 +1,20 @@
 # Paper-trading runbook (Track B B1)
 
-## One-time setup (VJ)
+## One-time setup — DONE 2026-07-19
 
-Register the daily task (19:00 IST, after the NSE bhavcopy lands ~18:30):
-
-```
-schtasks /Create /TN "artha-daily" /SC DAILY /ST 19:00 /TR "cmd /c cd /d \"C:\Users\vivaa\OneDrive\Desktop\Personal Projects\Quant\artha\" && %USERPROFILE%\.local\bin\uv.exe run --no-sync python scripts\run_daily_cycle.py >> %USERPROFILE%\quant-data\reports\paper\cycle.log 2>&1"
-```
-
-Optional weekly review (Saturdays 10:00):
+Both tasks are registered (wrappers in `scripts/artha_daily.cmd` /
+`scripts/artha_weekly.cmd`, output appended to
+`~/quant-data/reports/paper/cycle.log`):
 
 ```
-schtasks /Create /TN "artha-weekly" /SC WEEKLY /D SAT /ST 10:00 /TR "cmd /c cd /d \"C:\Users\vivaa\OneDrive\Desktop\Personal Projects\Quant\artha\" && %USERPROFILE%\.local\bin\uv.exe run --no-sync python scripts\run_weekly_review.py >> %USERPROFILE%\quant-data\reports\paper\cycle.log 2>&1"
+schtasks /Create /TN "artha-daily"  /SC DAILY        /ST 19:00 /TR "...\scripts\artha_daily.cmd"
+schtasks /Create /TN "artha-weekly" /SC WEEKLY /D SAT /ST 10:00 /TR "...\scripts\artha_weekly.cmd"
 ```
+
+Daily fires 19:00 (NSE bhavcopy lands ~18:30). Tasks run as the logged-on
+user: the machine must be on (or asleep-with-wake) at 19:00; a missed
+day shows up as a gap in paper_log.jsonl and resets nothing by itself —
+the gate only counts consecutive logged sessions.
 
 Telegram alerts (optional): set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID as
 user environment variables; without them alerts print to the log.
