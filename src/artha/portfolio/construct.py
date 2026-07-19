@@ -2,8 +2,9 @@
 
 Long-only, top-N equal weight as the base, then:
 
-- position cap (6% default) and sector cap (25%) via iterative clipping
-  with excess redistributed to uncapped names;
+- position cap (6% default) and sector cap (25%) via iterative clipping;
+  clipped excess is NOT redistributed - it stays in cash, so caps can
+  only lower gross, never concentrate it elsewhere;
 - ADV participation cap: an order's value may not exceed 2% of the name's
   21-day median traded value, capping how far a weight can MOVE per
   rebalance at a given capital;

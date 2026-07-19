@@ -19,7 +19,7 @@ from pathlib import Path
 import httpx
 
 from artha.live.adapters.base import BrokerAdapter
-from artha.live.oms import Oms, PlannedOrder
+from artha.live.oms import PlannedOrder, client_order_id
 
 PNL_BREACH = -0.05  # daily loss that freezes trading
 DERISK_DD = 0.10  # drawdown from peak that halves gross (plan section 11)
@@ -105,12 +105,16 @@ class KillSwitch:
         self.freeze_path.unlink(missing_ok=True)
 
     def flatten(self, adapter: BrokerAdapter, day: object) -> None:
-        """Sell everything, then freeze."""
+        """Sell everything, then freeze.
+
+        Deliberately bypasses OMS pre-trade checks: the emergency exit must
+        not be rejectable by the daily order-count cap, order-value cap, or
+        a price band against a stale reference. Sells only, idempotent ids."""
         from datetime import date as _date
 
         assert isinstance(day, _date)
-        orders = [
-            PlannedOrder(sym, "SELL", qty) for sym, qty in adapter.positions().items() if qty > 0
-        ]
-        Oms(adapter).execute(day, orders)
+        for sym, qty in sorted(adapter.positions().items()):
+            if qty > 0:
+                order = PlannedOrder(sym, "SELL", qty)
+                adapter.place_market_order(client_order_id(day, order), sym, "SELL", qty)
         self.freeze("flattened")

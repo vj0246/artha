@@ -131,3 +131,20 @@ class TestDrawdownAction:
         from artha.live.safety import drawdown_action
 
         assert drawdown_action(0.0, 0.0) == (1.0, False)
+
+
+class TestFlattenBypassesPretrade:
+    def test_flatten_exceeding_daily_order_cap_still_sells_all(self, tmp_path: Path) -> None:
+        from artha.live.oms import MAX_DAILY_ORDERS
+
+        n = MAX_DAILY_ORDERS + 5
+        quotes = {f"S{i:03d}": 100.0 for i in range(n)}
+        b = PaperBroker(tmp_path / "s.json", quotes, FlatCost(), starting_cash=n * 200.0)
+        for i in range(n):
+            b.place_market_order(f"seed{i}", f"S{i:03d}", "BUY", 1)
+        assert len(b.positions()) == n
+
+        kill = KillSwitch(tmp_path / "FREEZE")
+        kill.flatten(b, DAY)
+        assert b.positions() == {}
+        assert kill.frozen

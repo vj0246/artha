@@ -173,6 +173,9 @@ def run_backtest(
                 .head(constructor.top_n if constructor else top_n)
             )
             if picks.height:
+                # adv keeps the LAST KNOWN value for every name ever picked:
+                # departing names need an ADV for their exit participation cap
+                # (fail-open needs a stale value over a missing one)
                 adv.update(zip(picks["canon_symbol"], picks["adv_value"], strict=True))
                 realized: float | None = None
                 if constructor is None:
