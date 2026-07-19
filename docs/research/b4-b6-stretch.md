@@ -29,11 +29,31 @@ SPAN comfortably at this gross); stated limitation. Unit tests recover
 a planted 0.6 beta to within 0.05 and kill >50% of variance on a
 0.6-beta book.
 
-**Gate run.** `scripts/run_hedge_study.py`, gate |residual beta| < 0.1
-on the hedged series. Results: see `reports/hedge_study_*.json` —
-filled in below after the FO backfill completed.
+**Gate run** (2026-07-19, `reports/hedge_study_20260719T061633Z.json`).
+1,372 F&O files parsed (2021-01-01 to 2026-07-17, zero skips), overlap
+window 2021-04-05 to 2026-07-17 (1,251 days once the 60d beta warms up).
 
-RESULTS_PLACEHOLDER
+| | unhedged | hedged |
+|---|---|---|
+| CAGR | 10.5% | 7.1% |
+| vol | 13.2% | 11.0% |
+| Sharpe | 0.82 | 0.68 |
+| max drawdown | -16.9% | -14.4% |
+| hit rate | 59.5% | 55.2% |
+
+Mean hedge beta 0.58 (matches the P5 attribution beta 0.59 estimated
+independently over 2012-2026). **Residual beta -0.020 — GATE PASS**
+(|residual| < 0.1). Hedge cost drag 36 bps/yr.
+
+**Reading.** Hedging is not a free lunch here and the numbers say so
+honestly: the strategy's market beta carried real return, so stripping
+it costs ~3.4pp CAGR and 0.14 Sharpe in exchange for a 2.2pp vol cut
+and a shallower worst drawdown. The hedged series is the alpha stream —
+7.1% CAGR at near-zero market exposure — which is what you would size
+up under leverage or run when the mandate is market-neutral. As an
+always-on overlay for a long-only cash book it is not worth the drag;
+as a risk dial (crisis regimes, drawdown control) it is now built,
+tested, and one flag away.
 
 ## B5: read-only ops dashboard
 

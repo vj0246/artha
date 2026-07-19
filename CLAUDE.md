@@ -36,14 +36,20 @@ layer complete (PaperBroker, key-gated KiteAdapter, OMS with
 idempotent ids + pre-trade checks, kill switch, reconcile, Telegram,
 run_paper_day.py dry-run verified on real data) — 6-week paper clock
 starts when the runbook is scheduled daily; P9 US portability smoke
-passed (us_stub.py, pipeline unchanged). Remaining optional stretch:
-futures hedge overlay, dashboard, research agent.**
+passed (us_stub.py, pipeline unchanged). B4-B6 STRETCH DONE 2026-07-19
+(docs/research/b4-b6-stretch.md): B4 futures hedge GATE PASSED
+(residual beta -0.020; hedged 0.68 Sharpe/11% vol vs unhedged
+0.82/13.2% — overlay is a risk dial, beta carried return); B5 read-only
+dashboard (FastAPI + static page, scripts/run_dashboard.py); B6
+research agent (AST-sandboxed DSL, seed/Groq proposer, ridge quick
+screen — first run: 3 candidates, none beat library IC 0.0419).**
 
 - [x] P0-P6 Track A · [x] P7 engine+parity · [x] P8 live build
   ([ ] 6-wk paper run — wall clock, needs daily scheduling)
 - [x] P9 US smoke · Track B roadmap: docs/TRACK_B_PLAN.md
-  (B1 paper ops tooling → B2 Kite hardening → B3 real capital →
-  B4 futures overlay → B5 dashboard → B6 research agent)
+  ([x] B1 paper ops tooling → B2 Kite hardening (needs credentials) →
+  B3 real capital · [x] B4 futures overlay · [x] B5 dashboard ·
+  [x] B6 research agent)
 
 ## Rules
 1. Read `docs/PROJECT_PLAN.md` first. It is authoritative. When reality disagrees

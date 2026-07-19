@@ -83,7 +83,11 @@ honestly vs unhedged.
 Status 2026-07-19: built (fo.py ingest both formats, front-month series
 with same-contract rolls, lagged rolling-beta overlay with per-side +
 roll costs). Basis/margin model simplified to a cost-rate model; margin
-financing stated as a limitation. Gate run: scripts/run_hedge_study.py.
+financing stated as a limitation. GATE PASSED 2026-07-19
+(scripts/run_hedge_study.py): residual beta -0.020 (< 0.1), mean beta
+0.58, hedged 0.68 Sharpe / 11.0% vol vs unhedged 0.82 / 13.2% over
+2021-2026 — beta carried real return; overlay is a risk dial, not an
+always-on default. See docs/research/b4-b6-stretch.md.
 
 ## B5: Dashboard (stretch, ~2 sessions)
 
