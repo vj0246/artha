@@ -103,6 +103,18 @@ def main() -> int:
     universe = pit_universe(panel)
     cal = TradingCalendar.from_frame(universe)
     today = cal.last  # latest session in the curated data
+
+    # rerun guard: orders are idempotent, but the session log must hold
+    # exactly one non-dry row per trade date (the B1 gate counts sessions)
+    log_file = live_dir / "paper_log.jsonl"
+    if not args.dry_run and log_file.exists():
+        for line in log_file.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            row = json.loads(line)
+            if not row.get("dry_run") and row.get("trade_date") == str(today):
+                print(f"session {today} already logged; nothing to do")
+                return 0
     latest = universe.filter(pl.col("trade_date") == today)
     quotes = dict(zip(latest["canon_symbol"], latest["adj_close"], strict=True))
     adv = dict(zip(latest["canon_symbol"], latest["traded_value"], strict=True))
