@@ -7,11 +7,11 @@ import pytest
 from artha.data.calendar import TradingCalendar
 from artha.marketspec import NSECostModel, nse_spec
 
-# hand computation: levies = 0.0000297 + 0.000001 = 0.0000307
-# buy = 0.001 + 0.0000307 + 0.18*0.0000307 + 0.00015 = 0.00118623...
-# sell = 0.001 + 0.0000307 + 0.18*0.0000307 = 0.00103623...
-BUY_CHARGES = 0.001 + 0.0000307 * 1.18 + 0.00015
-SELL_CHARGES = 0.001 + 0.0000307 * 1.18
+# hand computation (rates verified 2026-07-19): levies = NSE txn 0.0000307
+# + SEBI 0.000001 = 0.0000317; GST 18% applies to the levies
+# buy = 0.001 + 0.0000317*1.18 + 0.00015; sell drops the stamp duty
+BUY_CHARGES = 0.001 + 0.0000317 * 1.18 + 0.00015
+SELL_CHARGES = 0.001 + 0.0000317 * 1.18
 
 
 def test_charges_without_impact() -> None:

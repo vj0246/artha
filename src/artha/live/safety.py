@@ -22,6 +22,18 @@ from artha.live.adapters.base import BrokerAdapter
 from artha.live.oms import Oms, PlannedOrder
 
 PNL_BREACH = -0.05  # daily loss that freezes trading
+DERISK_DD = 0.10  # drawdown from peak that halves gross (plan section 11)
+FLATTEN_DD = 0.15  # drawdown from peak that freezes trading
+
+
+def drawdown_action(peak_equity: float, equity: float) -> tuple[float, bool]:
+    """(gross scalar, freeze?) for the current drawdown from peak equity.
+
+    Enforced by the runbook, not just reported: past DERISK_DD the target
+    gross is halved; past FLATTEN_DD trading freezes (flatten stays a
+    deliberate manual decision via the kill switch)."""
+    dd = 0.0 if peak_equity <= 0 else equity / peak_equity - 1
+    return (0.5 if dd <= -DERISK_DD else 1.0), dd <= -FLATTEN_DD
 
 
 def alert(message: str) -> None:

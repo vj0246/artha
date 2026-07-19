@@ -61,6 +61,23 @@ unattributed), zero missed runs (holiday no-ops excluded).
 Gate B2: one week of read-only reconciliation against the live account
 with zero mismatches; verify-list items confirmed and dated in the plan.
 
+Status 2026-07-19: all code slices built ahead of credentials —
+scripts/kite_login.py (manual browser step by design),
+KiteAdapter.ltp_many + key-gated LTP overlay in run_paper_day (falls
+back to curated closes on any failure; quote_source logged per day),
+scripts/run_reconcile_readonly.py (never places orders; appends
+reconcile_readonly.jsonl). Verify-list confirmed 2026-07-19 against
+zerodha.com/charges: brokerage 0, STT 0.1% both sides, stamp 0.015%
+buy, SEBI Rs 10/crore, DP Rs 15.34/scrip sell, GST 18% on
+(brokerage+SEBI+txn) — all match; NSE transaction charge drifted
+0.00297% -> 0.00307%, constant updated. SEBI retail-algo framework
+(circular 2025-02-04, effective 2026-04-01): below 10 orders/sec per
+exchange = regular API user, no algo registration — artha's ~25 EOD
+orders/week is orders of magnitude under; note broker API now requires
+static-IP whitelisting + 2FA (part of VJ's Kite setup). Kite order tag
+limit 20 chars — client_order_id[:20] already enforced. GATE ITSELF
+waits on VJ's credentials + a funded account.
+
 ## B3: Real capital go-live (after B1 + B2 gates)
 
 Rs 1-2L, the section 11 risk limits active (drawdown de-risking rules
@@ -71,6 +88,17 @@ back into the impact model constants.
 
 Gate B3: 4 weeks live with slippage within 2x model and zero manual
 interventions other than the scheduled token login.
+
+Status 2026-07-19: safety slices built and rehearsed ahead of the
+gates — drawdown de-risk ENFORCED in run_paper_day (10% from peak
+halves gross, 15% freezes; unit-tested; gross_scalar logged daily);
+kill-switch drill executed on a synthetic scratch book at real prices
+(scripts/run_kill_drill.py: freeze -> flatten -> 3 positions to 0,
+PASS, evidence in kill_drills.jsonl; real paper state untouched);
+realized-vs-modeled slippage report (scripts/run_slippage_report.py
+over the new per-fill orders_log.jsonl — currently degenerate by
+construction with close-fill quotes, activates with B2's kite_ltp).
+GATE ITSELF waits on B1 + B2 gates + funded capital.
 
 ## B4: NIFTY futures hedge overlay (stretch, ~2 sessions)
 

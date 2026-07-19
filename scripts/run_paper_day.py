@@ -14,7 +14,9 @@ reconciliation breaks throughout.
 """
 
 import argparse
+import contextlib
 import json
+import os
 import sys
 from datetime import UTC, datetime
 from typing import cast
@@ -27,9 +29,27 @@ from artha.data.universe import pit_universe
 from artha.features.baselines import momentum_12_1
 from artha.live.adapters.paper import PaperBroker
 from artha.live.oms import Oms, plan_orders
-from artha.live.safety import KillSwitch, alert, reconcile
+from artha.live.safety import KillSwitch, alert, drawdown_action, reconcile
 from artha.marketspec.nse import NSECostModel
 from artha.portfolio.construct import ConstraintReport, Constructor
+
+
+def kite_ltp_override(quotes: dict[str, float], symbols: list[str]) -> str:
+    """Overlay Kite last-traded prices onto curated closes, in place.
+
+    Key-gated on KITE_API_KEY/KITE_ACCESS_TOKEN; any failure leaves the
+    curated closes untouched (B2: real intraday prices make realized
+    slippage measurable, but the runbook must never depend on them)."""
+    if not (os.environ.get("KITE_API_KEY") and os.environ.get("KITE_ACCESS_TOKEN")):
+        return "curated_close"
+    try:
+        from artha.live.adapters.zerodha import KiteAdapter
+
+        quotes.update(KiteAdapter().ltp_many(symbols))
+        return "kite_ltp"
+    except Exception as exc:
+        alert(f"kite ltp unavailable, using curated closes: {exc}")
+        return "curated_close"
 
 
 def trailing_book_vol(log_path: object) -> float | None:
@@ -95,10 +115,31 @@ def main() -> int:
         adv=adv,
     )
 
+    closes = dict(quotes)  # curated closes kept as slippage reference
+    quote_source = kite_ltp_override(quotes, sorted(broker.positions()))
     is_rebalance_day = today in set(cal.week_last_days())
     equity = broker.cash() + sum(
         qty * quotes.get(sym, 0.0) for sym, qty in broker.positions().items()
     )
+
+    # drawdown de-risk, enforced not just reported (B3; plan section 11)
+    log_path = live_dir / "paper_log.jsonl"
+    peak = equity
+    if log_path.exists():
+        with contextlib.suppress(json.JSONDecodeError):
+            rows = [
+                json.loads(line)
+                for line in log_path.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+            peak = max([equity] + [r["equity"] for r in rows if not r.get("dry_run")])
+    gross_scalar, dd_freeze = drawdown_action(peak, equity)
+    if dd_freeze:
+        kill.freeze(f"drawdown breach: equity {equity:.0f} vs peak {peak:.0f}")
+        return 1
+    if gross_scalar < 1.0:
+        alert(f"drawdown de-risk active: gross halved (equity {equity:.0f}, peak {peak:.0f})")
+
     report = None
     if is_rebalance_day:
         master = pl.read_parquet(settings.curated_dir / "security_master.parquet")
@@ -119,6 +160,8 @@ def main() -> int:
         prior = {
             sym: qty * quotes.get(sym, 0.0) / equity for sym, qty in broker.positions().items()
         }
+        if quote_source == "kite_ltp":
+            kite_ltp_override(quotes, sorted(set(scored["canon_symbol"])))
         targets = constructor.build(
             [(s, adv.get(s, 0.0)) for s in scored["canon_symbol"]],
             prior,
@@ -129,11 +172,33 @@ def main() -> int:
         if creport.violations:
             kill.freeze(f"constraint violations: {creport.violations[:3]}")
             return 1
+        if gross_scalar < 1.0:
+            targets = {s: w * gross_scalar for s, w in targets.items()}
         orders = plan_orders(targets, broker.positions(), quotes, equity)
         oms = Oms(broker, reference_prices=quotes, dry_run=args.dry_run)
         report = oms.execute(today, orders)
         for order, reason in report.rejected_pretrade:
             alert(f"pretrade reject {order.symbol} {order.side} {order.quantity}: {reason}")
+        live_dir.mkdir(parents=True, exist_ok=True)
+        with (live_dir / "orders_log.jsonl").open("a", encoding="utf-8") as f:
+            for order, result in report.submitted:
+                f.write(
+                    json.dumps(
+                        {
+                            "trade_date": str(today),
+                            "broker_order_id": result.broker_order_id,
+                            "symbol": order.symbol,
+                            "side": order.side,
+                            "quantity": order.quantity,
+                            "ref_close": closes.get(order.symbol),
+                            "fill_price": result.fill_price,
+                            "adv_value": adv.get(order.symbol),
+                            "status": result.status,
+                            "quote_source": quote_source,
+                        }
+                    )
+                    + "\n"
+                )
 
     # reconcile the paper book against itself (structure check; with the
     # Kite adapter this compares OMS expectations vs the real account)
@@ -153,6 +218,8 @@ def main() -> int:
         "orders_rejected": len(report.rejected_pretrade) if report else 0,
         "reconcile_ok": recon.ok,
         "dry_run": args.dry_run,
+        "quote_source": quote_source,
+        "gross_scalar": gross_scalar,
     }
     live_dir.mkdir(parents=True, exist_ok=True)
     with (live_dir / "paper_log.jsonl").open("a", encoding="utf-8") as f:

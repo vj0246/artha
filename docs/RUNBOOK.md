@@ -40,6 +40,31 @@ order ids are deterministic per day).
 - Reset the paper book (before the real clock starts only): delete
   `paper_state.json` and `paper_log.jsonl`.
 
+## Kite morning login (B2, once credentials exist)
+
+`uv run --no-sync python scripts/kite_login.py` prints the login URL;
+after the manual browser login rerun with the request_token to exchange
+for the day's KITE_ACCESS_TOKEN (printed once, never written to disk).
+With KITE_API_KEY/KITE_ACCESS_TOKEN set, run_paper_day upgrades quotes
+to Kite LTP automatically (quote_source in the daily log shows which).
+
+## Read-only account reconcile (B2 gate evidence)
+
+`uv run --no-sync python scripts/run_reconcile_readonly.py` — daily,
+for at least a week before any live order. Never places orders.
+
+## Kill-switch drill (B3 rehearsal)
+
+`uv run --no-sync python scripts/run_kill_drill.py [--synthetic]` —
+freeze -> flatten on a scratch copy of the paper book; evidence in
+kill_drills.jsonl. Real state never touched.
+
+## Slippage report (B3 feedback loop)
+
+`uv run --no-sync python scripts/run_slippage_report.py` — realized vs
+modeled per fill from orders_log.jsonl; meaningful once quote_source
+is kite_ltp.
+
 ## Dashboard (B5)
 
 `uv run --no-sync python scripts/run_dashboard.py [port]` — read-only

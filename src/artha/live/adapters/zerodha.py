@@ -33,6 +33,16 @@ class KiteAdapter:
         data = self._kite.ltp(f"NSE:{symbol}")
         return float(data[f"NSE:{symbol}"]["last_price"])
 
+    def ltp_many(self, symbols: list[str]) -> dict[str, float]:
+        """Batch last-traded prices; missing/suspended symbols are absent."""
+        out: dict[str, float] = {}
+        for i in range(0, len(symbols), 400):  # kite quote API batch limit
+            keys = [f"NSE:{s}" for s in symbols[i : i + 400]]
+            data = self._kite.ltp(keys)
+            for key, value in data.items():
+                out[key.split(":", 1)[1]] = float(value["last_price"])
+        return out
+
     def place_market_order(
         self, client_order_id: str, symbol: str, side: str, quantity: int
     ) -> BrokerOrderResult:

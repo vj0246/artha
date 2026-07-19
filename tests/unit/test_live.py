@@ -103,3 +103,31 @@ class TestSafety:
         assert b.positions() == {}
         kill.unfreeze()
         assert not kill.frozen
+
+
+class TestDrawdownAction:
+    def test_normal_book_untouched(self) -> None:
+        from artha.live.safety import drawdown_action
+
+        scalar, freeze = drawdown_action(100.0, 95.0)
+        assert scalar == 1.0
+        assert not freeze
+
+    def test_derisk_halves_gross(self) -> None:
+        from artha.live.safety import drawdown_action
+
+        scalar, freeze = drawdown_action(100.0, 89.0)
+        assert scalar == 0.5
+        assert not freeze
+
+    def test_flatten_threshold_freezes(self) -> None:
+        from artha.live.safety import drawdown_action
+
+        scalar, freeze = drawdown_action(100.0, 84.0)
+        assert scalar == 0.5
+        assert freeze
+
+    def test_zero_peak_is_safe(self) -> None:
+        from artha.live.safety import drawdown_action
+
+        assert drawdown_action(0.0, 0.0) == (1.0, False)

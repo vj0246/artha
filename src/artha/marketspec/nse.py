@@ -25,10 +25,10 @@ from artha.marketspec.base import MarketSpec
 
 STT: Final = 0.001
 STAMP_BUY: Final = 0.00015
-EXCHANGE_TXN: Final = 0.0000297
+EXCHANGE_TXN: Final = 0.0000307  # NSE, verified zerodha.com/charges 2026-07-19
 SEBI_FEE: Final = 0.000001
 GST: Final = 0.18
-DP_CHARGE_RS: Final = 15.34
+DP_CHARGE_RS: Final = 15.34  # verified 2026-07-19 (3.5 CDSL + 9.5 Zerodha + GST)
 
 IMPACT_A_BPS: Final = 3.0
 IMPACT_B_BPS: Final = 10.0
