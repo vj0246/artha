@@ -3,144 +3,497 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>artha</title>
+<title>artha · ops</title>
 <style>
-  :root { color-scheme: light dark; --fg: #1a1a2e; --bg: #fafafa; --card: #fff;
-          --accent: #2563eb; --muted: #667; --line: #e5e7eb; }
+  /* palette roles (reference dataviz palette, validated light+dark) */
+  :root {
+    color-scheme: light;
+    --page: #f9f9f7; --surface: #fcfcfb;
+    --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
+    --grid: #e1e0d9; --baseline: #c3c2b7; --ring: rgba(11,11,11,0.10);
+    --s1: #2a78d6; --s2: #008300;
+    --good: #0ca30c; --warn: #fab219; --serious: #ec835a; --crit: #d03b3b;
+    --up: #006300; --down: #d03b3b;
+  }
   @media (prefers-color-scheme: dark) {
-    :root { --fg: #e7e7ef; --bg: #101018; --card: #191924; --muted: #99a; --line: #2a2a38; }
+    :root {
+      color-scheme: dark;
+      --page: #0d0d0d; --surface: #1a1a19;
+      --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
+      --grid: #2c2c2a; --baseline: #383835; --ring: rgba(255,255,255,0.10);
+      --s1: #3987e5; --s2: #008300;
+      --up: #0ca30c;
+    }
   }
   * { box-sizing: border-box; margin: 0; }
-  body { font: 14px/1.5 system-ui, sans-serif; color: var(--fg); background: var(--bg);
-         padding: 1.2rem; max-width: 1100px; margin: auto; }
-  h1 { font-size: 1.3rem; margin-bottom: .2rem; }
-  .sub { color: var(--muted); margin-bottom: 1rem; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-          gap: .7rem; margin-bottom: 1rem; }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
-          padding: .8rem 1rem; }
-  .kpi b { font-size: 1.25rem; display: block; }
-  .kpi span { color: var(--muted); font-size: .78rem; }
-  canvas { width: 100%; height: 260px; }
-  table { width: 100%; border-collapse: collapse; font-size: .82rem; }
-  th, td { text-align: right; padding: .3rem .5rem; border-bottom: 1px solid var(--line); }
+  body {
+    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: var(--ink); background: var(--page);
+    max-width: 1180px; margin: auto; padding: 1.1rem 1.2rem 3rem;
+  }
+  header { display: flex; align-items: baseline; gap: .8rem; flex-wrap: wrap; margin-bottom: 1rem; }
+  h1 { font-size: 1.25rem; letter-spacing: -0.01em; }
+  .live {
+    display: inline-flex; align-items: center; gap: .4rem;
+    font-size: .78rem; color: var(--ink-2);
+    border: 1px solid var(--ring); border-radius: 999px; padding: .15rem .65rem;
+  }
+  .live .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--good); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .3 } }
+  .asof { margin-left: auto; font-size: .78rem; color: var(--muted); }
+
+  .filters { display: flex; gap: .4rem; margin: 0 0 1rem; }
+  .filters button {
+    font: inherit; font-size: .8rem; color: var(--ink-2);
+    background: var(--surface); border: 1px solid var(--ring);
+    border-radius: 8px; padding: .3rem .8rem; cursor: pointer;
+  }
+  .filters button:hover { border-color: var(--baseline); }
+  .filters button[aria-pressed="true"] { color: var(--ink); font-weight: 600; border-color: var(--ink-2); }
+
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: .7rem; margin-bottom: 1rem; }
+  .card { background: var(--surface); border: 1px solid var(--ring); border-radius: 12px; padding: .9rem 1rem; }
+  .tile b { display: block; font-size: 1.45rem; letter-spacing: -0.02em; }
+  .tile span { color: var(--muted); font-size: .74rem; }
+  .tile .sub { font-size: .74rem; color: var(--ink-2); margin-top: .1rem; }
+  .tile .sub.up { color: var(--up); } .tile .sub.down { color: var(--down); }
+
+  .grid2 { display: grid; grid-template-columns: 2fr 1fr; gap: .8rem; margin-bottom: .8rem; }
+  @media (max-width: 900px) { .grid2 { grid-template-columns: 1fr; } }
+  h2 { font-size: .95rem; margin: 1.3rem 0 .5rem; }
+  h3 { font-size: .85rem; color: var(--ink-2); margin-bottom: .5rem; font-weight: 600; }
+
+  .chart-wrap { position: relative; }
+  svg text { font: 11px system-ui, sans-serif; fill: var(--muted); }
+  .tooltip {
+    position: absolute; pointer-events: none; display: none; z-index: 5;
+    background: var(--surface); border: 1px solid var(--ring); border-radius: 8px;
+    padding: .45rem .6rem; font-size: .78rem; box-shadow: 0 4px 14px rgba(0,0,0,.12);
+    min-width: 130px;
+  }
+  .tooltip .tt-date { color: var(--muted); font-size: .72rem; margin-bottom: .2rem; }
+  .tooltip .row { display: flex; align-items: center; gap: .45rem; }
+  .tooltip .key { width: 14px; height: 0; border-top: 2px solid; }
+  .tooltip .val { font-weight: 600; margin-left: auto; font-variant-numeric: tabular-nums; }
+  .legend { display: flex; gap: 1rem; font-size: .76rem; color: var(--ink-2); margin-top: .4rem; }
+  .legend .key { display: inline-block; width: 14px; border-top: 2px solid; vertical-align: middle; margin-right: .35rem; }
+
+  table { width: 100%; border-collapse: collapse; font-size: .8rem; }
+  th, td { text-align: right; padding: .32rem .5rem; border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; }
+  th { color: var(--muted); font-weight: 500; }
   th:first-child, td:first-child { text-align: left; }
-  h2 { font-size: 1rem; margin: 1.2rem 0 .5rem; }
-  .err { color: #c33; }
+  tr:hover td { background: color-mix(in oklab, var(--surface) 88%, var(--ink)); }
+  .ok { color: var(--good); } .bad { color: var(--crit); }
+
+  .check { display: flex; align-items: center; gap: .55rem; padding: .3rem 0; font-size: .82rem; }
+  .check .ic { width: 17px; height: 17px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: .7rem; flex: none; }
+  .check .ic.pass { background: var(--good); } .check .ic.wait { background: var(--muted); }
+  details { margin-top: .5rem; font-size: .78rem; color: var(--ink-2); }
+  summary { cursor: pointer; color: var(--muted); }
+  .err { color: var(--crit); font-size: .8rem; }
+  .note { color: var(--muted); font-size: .76rem; margin-top: .4rem; }
 </style>
 </head>
 <body>
-<h1>artha</h1>
-<div class="sub">read-only run artifacts · localhost</div>
-<div class="grid" id="kpis"></div>
-<div class="card"><canvas id="chart"></canvas></div>
-<h2>Model study (walk-forward, net)</h2>
+<header>
+  <h1>artha</h1>
+  <span class="live"><span class="dot"></span><span id="live-label">live · refreshing</span></span>
+  <span class="asof" id="asof"></span>
+</header>
+
+<div class="filters" id="range-filters" role="group" aria-label="date range">
+  <button data-days="365">1Y</button>
+  <button data-days="1095">3Y</button>
+  <button data-days="1825" aria-pressed="true">5Y</button>
+  <button data-days="0">All</button>
+</div>
+
+<div class="tiles" id="tiles"></div>
+
+<div class="grid2">
+  <div class="card chart-wrap">
+    <h3>Growth of 100 — strategy backdrop</h3>
+    <div id="chart-tri"></div>
+    <div class="legend" id="legend-tri"></div>
+    <details><summary>data (monthly)</summary><table id="tri-table"></table></details>
+  </div>
+  <div class="card">
+    <h3>Go-live checklist</h3>
+    <div id="checklist"></div>
+    <div class="note" id="b1-progress"></div>
+  </div>
+</div>
+
+<div class="grid2">
+  <div class="card chart-wrap">
+    <h3>Net Sharpe by funded capital (readiness sizing)</h3>
+    <div id="chart-sizing"></div>
+    <div class="note">full-cost backtests 2019-2026; DP charges + integer shares included</div>
+  </div>
+  <div class="card">
+    <h3>Futures hedge (B4)</h3>
+    <div id="hedge"></div>
+  </div>
+</div>
+
+<h2>Model study — walk-forward, net of costs</h2>
 <div class="card"><table id="models"></table></div>
-<h2>Paper log</h2>
+
+<h2>Paper sessions</h2>
 <div class="card"><table id="paper"></table></div>
+
 <h2>Trial ledger</h2>
 <div class="card"><table id="ledger"></table></div>
+
+<div class="tooltip" id="tt"></div>
+
 <script>
-const fmt = (x, d=2) => x == null ? "—" : Number(x).toFixed(d);
-const pct = x => x == null ? "—" : (100 * x).toFixed(1) + "%";
+"use strict";
+const $ = id => document.getElementById(id);
+const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const fmt = (x, d=2) => x == null || Number.isNaN(+x) ? "—" : (+x).toFixed(d);
+const pct = (x, d=1) => x == null ? "—" : (100 * x).toFixed(d) + "%";
+const rs = x => x == null ? "—" : "₹" + (+x).toLocaleString("en-IN", {maximumFractionDigits: 0});
 
 async function j(url) {
   const r = await fetch(url);
-  if (!r.ok) throw new Error(url + " " + r.status);
+  if (!r.ok) throw new Error(url + " → " + r.status);
   return r.json();
 }
 
-function kpi(label, value) {
-  return `<div class="card kpi"><b>${value}</b><span>${label}</span></div>`;
+/* ---------- svg line chart with crosshair + all-series tooltip ---------- */
+function lineChart(el, seriesList, opts = {}) {
+  el.replaceChildren();
+  const W = el.clientWidth || 640, H = opts.height || 260;
+  const P = {t: 14, r: 12, b: 24, l: 44};
+  const all = seriesList.flatMap(s => s.pts);
+  if (!all.length) { el.textContent = "no data"; return; }
+  const xs = all.map(p => p.x), ys = all.map(p => p.y);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs);
+  let lo = Math.min(...ys), hi = Math.max(...ys);
+  const pad = (hi - lo || 1) * 0.06; lo -= pad; hi += pad;
+  const X = v => P.l + (W - P.l - P.r) * (v - x0) / (x1 - x0 || 1);
+  const Y = v => H - P.b - (H - P.b - P.t) * (v - lo) / (hi - lo || 1);
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.setAttribute("width", "100%"); svg.setAttribute("height", H);
+  const add = (tag, attrs, parent = svg) => {
+    const n = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+    parent.appendChild(n); return n;
+  };
+  const ticks = 4;
+  for (let i = 0; i <= ticks; i++) {
+    const v = lo + (hi - lo) * i / ticks, y = Y(v);
+    add("line", {x1: P.l, x2: W - P.r, y1: y, y2: y, stroke: css("--grid"), "stroke-width": 1});
+    const t = add("text", {x: P.l - 6, y: y + 4, "text-anchor": "end"});
+    t.textContent = opts.fmtY ? opts.fmtY(v) : fmt(v, 0);
+  }
+  add("line", {x1: P.l, x2: W - P.r, y1: H - P.b, y2: H - P.b, stroke: css("--baseline"), "stroke-width": 1});
+  const d0 = new Date(x0), d1 = new Date(x1);
+  const tl = add("text", {x: P.l, y: H - 7}); tl.textContent = d0.toISOString().slice(0, 10);
+  const tr = add("text", {x: W - P.r, y: H - 7, "text-anchor": "end"}); tr.textContent = d1.toISOString().slice(0, 10);
+
+  for (const s of seriesList) {
+    const d = s.pts.map((p, i) => (i ? "L" : "M") + X(p.x).toFixed(1) + " " + Y(p.y).toFixed(1)).join("");
+    add("path", {d, fill: "none", stroke: s.color, "stroke-width": 2, "stroke-linejoin": "round"});
+    const last = s.pts[s.pts.length - 1];
+    const lbl = add("text", {x: Math.min(X(last.x) + 4, W - 40), y: Y(last.y) - 5});
+    lbl.textContent = s.name; lbl.style.fill = css("--ink-2");
+  }
+
+  const cross = add("line", {y1: P.t, y2: H - P.b, stroke: css("--baseline"), "stroke-width": 1, visibility: "hidden"});
+  const dots = seriesList.map(s => add("circle", {r: 3.5, fill: s.color, visibility: "hidden"}));
+  const tt = $("tt");
+  const idx = seriesList.map(s => s.pts);
+  svg.addEventListener("pointermove", ev => {
+    const box = svg.getBoundingClientRect();
+    const px = (ev.clientX - box.left) * W / box.width;
+    const tx = x0 + (px - P.l) / (W - P.l - P.r) * (x1 - x0);
+    cross.setAttribute("visibility", "visible");
+    tt.style.display = "block";
+    tt.replaceChildren();
+    const dEl = document.createElement("div"); dEl.className = "tt-date";
+    let snapX = null;
+    seriesList.forEach((s, si) => {
+      const pts = idx[si];
+      let best = 0;
+      for (let i = 1; i < pts.length; i++) if (Math.abs(pts[i].x - tx) < Math.abs(pts[best].x - tx)) best = i;
+      const p = pts[best];
+      if (snapX == null) { snapX = p.x; dEl.textContent = new Date(p.x).toISOString().slice(0, 10); tt.appendChild(dEl); }
+      dots[si].setAttribute("cx", X(p.x)); dots[si].setAttribute("cy", Y(p.y));
+      dots[si].setAttribute("visibility", "visible");
+      const row = document.createElement("div"); row.className = "row";
+      const key = document.createElement("span"); key.className = "key"; key.style.borderTopColor = s.color;
+      const name = document.createElement("span"); name.textContent = s.name;
+      const val = document.createElement("span"); val.className = "val";
+      val.textContent = opts.fmtY ? opts.fmtY(p.y) : fmt(p.y);
+      row.append(key, name, val); tt.appendChild(row);
+    });
+    cross.setAttribute("x1", X(snapX)); cross.setAttribute("x2", X(snapX));
+    const page = document.body.getBoundingClientRect();
+    tt.style.left = Math.min(ev.clientX - page.left + 14, page.width - 160) + "px";
+    tt.style.top = (ev.clientY - page.top - 10) + "px";
+  });
+  svg.addEventListener("pointerleave", () => {
+    cross.setAttribute("visibility", "hidden");
+    dots.forEach(d => d.setAttribute("visibility", "hidden"));
+    tt.style.display = "none";
+  });
+  el.appendChild(svg);
 }
 
-function table(el, rows, cols) {
-  const head = "<tr>" + cols.map(c => `<th>${c[0]}</th>`).join("") + "</tr>";
-  const body = rows.map(r =>
-    "<tr>" + cols.map(c => `<td>${c[1](r)}</td>`).join("") + "</tr>").join("");
-  document.getElementById(el).innerHTML = head + body;
+/* ---------- svg bar chart with per-mark hover ---------- */
+function barChart(el, bars, opts = {}) {
+  el.replaceChildren();
+  const W = el.clientWidth || 500, H = opts.height || 220;
+  const P = {t: 14, r: 10, b: 26, l: 38};
+  const hi = Math.max(...bars.map(b => b.y)) * 1.12 || 1;
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.setAttribute("width", "100%"); svg.setAttribute("height", H);
+  const add = (tag, attrs) => {
+    const n = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+    svg.appendChild(n); return n;
+  };
+  const Y = v => H - P.b - (H - P.b - P.t) * v / hi;
+  for (let i = 0; i <= 3; i++) {
+    const v = hi * i / 3, y = Y(v);
+    add("line", {x1: P.l, x2: W - P.r, y1: y, y2: y, stroke: css("--grid")});
+    const t = add("text", {x: P.l - 5, y: y + 4, "text-anchor": "end"}); t.textContent = fmt(v, 1);
+  }
+  add("line", {x1: P.l, x2: W - P.r, y1: H - P.b, y2: H - P.b, stroke: css("--baseline")});
+  const bw = (W - P.l - P.r) / bars.length;
+  const tt = $("tt");
+  bars.forEach((b, i) => {
+    const x = P.l + i * bw + bw * 0.18, w = bw * 0.64, y = Y(b.y);
+    const r = add("rect", {x, y, width: w, height: H - P.b - y, rx: 4, fill: css("--s1")});
+    const t = add("text", {x: x + w / 2, y: H - 9, "text-anchor": "middle"}); t.textContent = b.label;
+    const hit = add("rect", {x: P.l + i * bw, y: P.t, width: bw, height: H - P.t - P.b, fill: "transparent"});
+    hit.addEventListener("pointermove", ev => {
+      r.setAttribute("opacity", "0.8");
+      tt.style.display = "block"; tt.replaceChildren();
+      const d = document.createElement("div"); d.className = "tt-date"; d.textContent = b.label;
+      tt.appendChild(d);
+      for (const [k, v] of Object.entries(b.detail)) {
+        const row = document.createElement("div"); row.className = "row";
+        const name = document.createElement("span"); name.textContent = k;
+        const val = document.createElement("span"); val.className = "val"; val.textContent = v;
+        row.append(name, val); tt.appendChild(row);
+      }
+      const page = document.body.getBoundingClientRect();
+      tt.style.left = Math.min(ev.clientX - page.left + 14, page.width - 170) + "px";
+      tt.style.top = (ev.clientY - page.top - 10) + "px";
+    });
+    hit.addEventListener("pointerleave", () => { r.setAttribute("opacity", "1"); tt.style.display = "none"; });
+  });
+  el.appendChild(svg);
 }
 
-function drawChart(series) {
-  const cv = document.getElementById("chart");
-  const dpr = window.devicePixelRatio || 1;
-  cv.width = cv.clientWidth * dpr; cv.height = cv.clientHeight * dpr;
-  const ctx = cv.getContext("2d"); ctx.scale(dpr, dpr);
-  const w = cv.clientWidth, h = cv.clientHeight, pad = 34;
-  const ys = series.map(p => p.tr_index);
-  const lo = Math.min(...ys), hi = Math.max(...ys);
-  const x = i => pad + (w - 2 * pad) * i / (series.length - 1);
-  const y = v => h - pad - (h - 2 * pad) * (v - lo) / (hi - lo);
-  ctx.strokeStyle = getComputedStyle(document.body).getPropertyValue("--line");
-  ctx.strokeRect(pad, pad, w - 2 * pad, h - 2 * pad);
-  ctx.strokeStyle = getComputedStyle(document.body).getPropertyValue("--accent");
-  ctx.lineWidth = 1.6; ctx.beginPath();
-  series.forEach((p, i) => i ? ctx.lineTo(x(i), y(p.tr_index)) : ctx.moveTo(x(i), y(p.tr_index)));
-  ctx.stroke();
-  ctx.fillStyle = getComputedStyle(document.body).getPropertyValue("--muted");
-  ctx.font = "11px system-ui";
-  ctx.fillText(series[0].trade_date, pad, h - 12);
-  ctx.fillText(series[series.length - 1].trade_date, w - pad - 60, h - 12);
-  ctx.fillText("NIFTY 500 synthetic TRI", pad, 20);
+/* ---------- sections ---------- */
+const state = {days: 1825, data: {}};
+
+function tile(label, value, sub = "", cls = "") {
+  const d = document.createElement("div"); d.className = "card tile";
+  const b = document.createElement("b"); b.textContent = value;
+  const s = document.createElement("span"); s.textContent = label;
+  d.append(b, s);
+  if (sub) { const p = document.createElement("div"); p.className = "sub " + cls; p.textContent = sub; d.appendChild(p); }
+  return d;
 }
 
-(async () => {
-  try {
-    const ts = await j("/api/tearsheet");
-    const s = ts.constructed_momentum;
-    document.getElementById("kpis").innerHTML =
-      kpi("net Sharpe", fmt(s.sharpe)) +
-      kpi("net CAGR", pct(s.cagr)) +
-      kpi("vol", pct(s.vol)) +
-      kpi("max drawdown", pct(s.max_drawdown)) +
-      kpi("DSR", fmt(ts.dsr)) +
-      kpi("ledger trials", ts.ledger_trials) +
-      kpi("constraint violations", (ts.constraint_violations || []).length);
-  } catch (e) { document.getElementById("kpis").innerHTML = `<div class="err">${e}</div>`; }
+function renderTiles() {
+  const {ts, log, readiness} = state.data;
+  const el = $("tiles"); el.replaceChildren();
+  const s = ts?.constructed_momentum || {};
+  const liveRows = (log || []).filter(r => !r.dry_run);
+  const last = liveRows[liveRows.length - 1];
+  el.append(
+    tile("net Sharpe (research)", fmt(s.sharpe), "DSR " + fmt(ts?.dsr), ""),
+    tile("net CAGR", pct(s.cagr), "vol " + pct(s.vol)),
+    tile("max drawdown", pct(s.max_drawdown), "capacity flat to ₹25Cr"),
+    tile("paper equity", last ? rs(last.equity) : "—", last ? last.n_positions + " positions" : "clock not started"),
+    tile("B1 clock", liveRows.length + "/30", (readiness?.operations?.missed_sessions?.length || 0) + " missed", liveRows.length ? "up" : ""),
+    tile("ledger trials", ts?.ledger_trials ?? "—", "every experiment counted"),
+  );
+}
 
-  try {
-    const bench = await j("/api/benchmark");
-    drawChart(bench.filter((_, i) => i % 3 === 0));
-  } catch (e) { /* chart optional */ }
+function renderTri() {
+  const bench = state.data.bench || [];
+  const cutoff = state.days ? Date.now() - state.days * 864e5 : 0;
+  const pts = bench
+    .map(r => ({x: Date.parse(r.trade_date), y: r.tr_index}))
+    .filter(p => p.x >= cutoff);
+  if (!pts.length) return;
+  const base = pts[0].y;
+  const tri = pts.map(p => ({x: p.x, y: 100 * p.y / base}));
+  const seriesList = [{name: "NIFTY 500 TRI (synthetic)", color: css("--s1"), pts: tri}];
 
-  try {
-    const ms = await j("/api/model_study");
-    const rows = Object.entries(ms).filter(([k, v]) => v && v.net);
-    table("models", rows, [
+  const liveRows = (state.data.log || []).filter(r => !r.dry_run);
+  if (liveRows.length >= 2) {
+    const e0 = liveRows[0].equity;
+    seriesList.push({
+      name: "paper book", color: css("--s2"),
+      pts: liveRows.map(r => ({x: Date.parse(r.trade_date), y: 100 * r.equity / e0})),
+    });
+  }
+  lineChart($("chart-tri"), seriesList, {fmtY: v => fmt(v, 0)});
+  const lg = $("legend-tri"); lg.replaceChildren();
+  for (const s of seriesList) {
+    const item = document.createElement("span");
+    const key = document.createElement("span"); key.className = "key"; key.style.borderTopColor = s.color;
+    item.append(key, document.createTextNode(s.name));
+    lg.appendChild(item);
+  }
+  const tbl = $("tri-table"); tbl.replaceChildren();
+  const hr = tbl.insertRow(); ["month", "index"].forEach(h => { const th = document.createElement("th"); th.textContent = h; hr.appendChild(th); });
+  const monthly = tri.filter((p, i) => i === 0 || new Date(p.x).getUTCMonth() !== new Date(tri[i - 1].x).getUTCMonth());
+  for (const p of monthly.slice(-24)) {
+    const r = tbl.insertRow();
+    r.insertCell().textContent = new Date(p.x).toISOString().slice(0, 7);
+    r.insertCell().textContent = fmt(p.y, 1);
+  }
+}
+
+function renderChecklist() {
+  const rd = state.data.readiness;
+  const el = $("checklist"); el.replaceChildren();
+  if (!rd) { el.textContent = "run scripts/run_live_readiness.py"; return; }
+  const labels = {
+    b1_30_clean_sessions: "B1 — 30 clean paper sessions",
+    b2_credentials_and_reconcile_week: "B2 — reconcile week vs real account",
+    tracking_within_tolerance: "tracking error within 2% ann.",
+    slippage_measurable: "slippage measurable (kite LTP)",
+    vol_in_band: "realized vol in 10-17% band",
+    live_stats_conclusive: "live PSR ≥ 95%",
+  };
+  for (const [k, label] of Object.entries(labels)) {
+    const pass = !!rd.go_live_checklist?.[k];
+    const row = document.createElement("div"); row.className = "check";
+    const ic = document.createElement("span"); ic.className = "ic " + (pass ? "pass" : "wait");
+    ic.textContent = pass ? "✓" : "…";
+    const tx = document.createElement("span"); tx.textContent = label;
+    row.append(ic, tx); el.appendChild(row);
+  }
+  $("b1-progress").textContent = rd.operations?.b1_gate_progress
+    ? "progress: " + rd.operations.b1_gate_progress + " · started " + (rd.operations.first_live_session || "—")
+    : "";
+}
+
+function renderSizing() {
+  const rd = state.data.readiness;
+  if (!rd?.sizing?.levels) return;
+  const bars = Object.entries(rd.sizing.levels).map(([cap, v]) => ({
+    label: "₹" + (+cap.replace(/,/g, "") / 100000).toFixed(0) + "L",
+    y: v.net_sharpe,
+    detail: {
+      "net Sharpe": fmt(v.net_sharpe), "net CAGR": pct(v.net_cagr),
+      "DP cost/sell": fmt(v.dp_charge_bps_per_sell, 0) + " bps",
+      "weight step": pct(v.weight_granularity_at_median_price),
+    },
+  }));
+  barChart($("chart-sizing"), bars);
+}
+
+function renderHedge() {
+  const h = state.data.hedge;
+  const el = $("hedge"); el.replaceChildren();
+  if (!h) { el.textContent = "no hedge study yet"; return; }
+  const tbl = document.createElement("table");
+  const hr = tbl.insertRow();
+  ["", "unhedged", "hedged"].forEach(t => { const th = document.createElement("th"); th.textContent = t; hr.appendChild(th); });
+  const rows = [
+    ["Sharpe", fmt(h.unhedged?.sharpe), fmt(h.hedged?.sharpe)],
+    ["CAGR", pct(h.unhedged?.cagr), pct(h.hedged?.cagr)],
+    ["vol", pct(h.unhedged?.vol), pct(h.hedged?.vol)],
+    ["max DD", pct(h.unhedged?.max_drawdown), pct(h.hedged?.max_drawdown)],
+  ];
+  for (const [a, b, c] of rows) {
+    const r = tbl.insertRow();
+    r.insertCell().textContent = a; r.insertCell().textContent = b; r.insertCell().textContent = c;
+  }
+  el.appendChild(tbl);
+  const note = document.createElement("div"); note.className = "note";
+  const gate = h.gate_pass ? "gate PASS" : "gate FAIL";
+  note.textContent = `residual β ${fmt(h.residual_beta, 3)} (${gate}) · mean β ${fmt(h.mean_beta, 2)} · risk dial, not always-on`;
+  el.appendChild(note);
+}
+
+function fillTable(el, rows, cols) {
+  const tbl = $(el); tbl.replaceChildren();
+  const hr = tbl.insertRow();
+  cols.forEach(c => { const th = document.createElement("th"); th.textContent = c[0]; hr.appendChild(th); });
+  for (const row of rows) {
+    const r = tbl.insertRow();
+    cols.forEach(c => {
+      const cell = r.insertCell();
+      const v = c[1](row);
+      if (v && typeof v === "object") { cell.appendChild(v); } else { cell.textContent = v; }
+    });
+  }
+}
+
+function renderTables() {
+  const {ms, log, ledger} = state.data;
+  if (ms) {
+    const rows = Object.entries(ms).filter(([, v]) => v && v.net);
+    fillTable("models", rows, [
       ["model", r => r[0]],
       ["IC", r => fmt(r[1].mean_ic, 4)],
       ["net Sharpe", r => fmt(r[1].net.sharpe)],
       ["net CAGR", r => pct(r[1].net.cagr)],
-      ["turnover", r => fmt(r[1].net.turnover_oneway_ann, 1) + "x"],
-      ["DSR", r => fmt(r[1].dsr)],
+      ["turnover", r => fmt(r[1].net.turnover_oneway_ann, 1) + "×"],
+      ["DSR", r => fmt(r[1].dsr, 3)],
     ]);
-  } catch (e) { document.getElementById("models").innerHTML = `<tr><td class="err">${e}</td></tr>`; }
+  }
+  if (log) fillTable("paper", [...log].slice(-14).reverse(), [
+    ["date", r => r.trade_date],
+    ["equity", r => rs(r.equity)],
+    ["positions", r => r.n_positions],
+    ["orders", r => r.orders_submitted],
+    ["rejects", r => r.orders_rejected],
+    ["quotes", r => r.quote_source || "—"],
+    ["gross", r => fmt(r.gross_scalar ?? 1, 2)],
+    ["reconcile", r => { const s = document.createElement("span"); s.className = r.reconcile_ok ? "ok" : "bad"; s.textContent = r.reconcile_ok ? "ok" : "BREAK"; return s; }],
+    ["mode", r => r.dry_run ? "dry" : "live"],
+  ]);
+  if (ledger) fillTable("ledger", [...ledger].slice(-12).reverse(), [
+    ["model", r => r.model],
+    ["features", r => r.feature_set],
+    ["label", r => r.label],
+    ["IC", r => fmt(r.mean_ic, 4)],
+    ["net Sharpe", r => r.net_sharpe == null ? "—" : fmt(r.net_sharpe)],
+    ["run", r => (r.run_at || "").slice(0, 10)],
+  ]);
+}
 
-  try {
-    const log = await j("/api/paper_log");
-    table("paper", log.slice(-15).reverse(), [
-      ["date", r => r.trade_date],
-      ["equity", r => fmt(r.equity, 0)],
-      ["positions", r => r.n_positions],
-      ["orders", r => r.orders_submitted],
-      ["rejects", r => r.orders_rejected],
-      ["reconcile", r => r.reconcile_ok ? "ok" : "BREAK"],
-      ["dry", r => r.dry_run ? "y" : ""],
-    ]);
-  } catch (e) { document.getElementById("paper").innerHTML = `<tr><td class="err">${e}</td></tr>`; }
+async function refresh() {
+  $("live-label").textContent = "live · refreshing";
+  const jobs = {
+    ts: "/api/tearsheet", bench: "/api/benchmark", ms: "/api/model_study",
+    log: "/api/paper_log", ledger: "/api/ledger", readiness: "/api/readiness", hedge: "/api/hedge",
+  };
+  await Promise.all(Object.entries(jobs).map(async ([k, url]) => {
+    try { state.data[k] = await j(url); } catch { if (!(k in state.data)) state.data[k] = null; }
+  }));
+  renderTiles(); renderTri(); renderChecklist(); renderSizing(); renderHedge(); renderTables();
+  $("asof").textContent = "as of " + new Date().toLocaleTimeString();
+  $("live-label").textContent = "live · 60s refresh";
+}
 
-  try {
-    const led = await j("/api/ledger");
-    table("ledger", led.slice(-12).reverse(), [
-      ["model", r => r.model],
-      ["features", r => r.feature_set],
-      ["label", r => r.label],
-      ["IC", r => fmt(r.mean_ic, 4)],
-      ["net Sharpe", r => fmt(r.net_sharpe)],
-      ["run", r => (r.run_at || "").slice(0, 10)],
-    ]);
-  } catch (e) { document.getElementById("ledger").innerHTML = `<tr><td class="err">${e}</td></tr>`; }
-})();
+$("range-filters").addEventListener("click", ev => {
+  const b = ev.target.closest("button"); if (!b) return;
+  for (const btn of $("range-filters").querySelectorAll("button")) btn.setAttribute("aria-pressed", "false");
+  b.setAttribute("aria-pressed", "true");
+  state.days = +b.dataset.days;
+  renderTri();
+});
+window.addEventListener("resize", () => { renderTri(); renderSizing(); });
+refresh();
+setInterval(refresh, 60_000);
 </script>
 </body>
 </html>

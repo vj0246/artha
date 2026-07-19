@@ -65,6 +65,21 @@ def survivorship() -> dict[str, Any]:
     return _latest("survivorship_demo_*.json")
 
 
+@app.get("/api/readiness")
+def readiness() -> dict[str, Any]:
+    return _latest("live_readiness_*.json")
+
+
+@app.get("/api/hedge")
+def hedge() -> dict[str, Any]:
+    return _latest("hedge_study_*.json")
+
+
+@app.get("/api/research_agent")
+def research_agent() -> dict[str, Any]:
+    return _latest("research_agent_*.json")
+
+
 @app.get("/api/ledger")
 def ledger() -> list[dict[str, Any]]:
     settings = load_settings()

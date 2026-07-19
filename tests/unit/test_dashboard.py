@@ -35,7 +35,7 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
 def test_index_serves_static_page(client: TestClient) -> None:
     r = client.get("/")
     assert r.status_code == 200
-    assert "<canvas" in r.text
+    assert "chart-tri" in r.text  # SVG chart mount point
 
 
 def test_tearsheet_returns_latest(client: TestClient) -> None:
@@ -58,3 +58,19 @@ def test_jsonl_endpoints(client: TestClient) -> None:
 def test_missing_report_is_404(client: TestClient) -> None:
     assert client.get("/api/event_alpha").status_code == 404
     assert client.get("/api/benchmark").status_code == 404
+    assert client.get("/api/readiness").status_code == 404
+    assert client.get("/api/hedge").status_code == 404
+
+
+def test_readiness_and_hedge_serve_latest(client: TestClient, tmp_path: Path) -> None:
+    reports = tmp_path / "reports"
+    (reports / "live_readiness_20260101T000000Z.json").write_text(
+        json.dumps({"go_live_checklist": {"b1_30_clean_sessions": False}}), encoding="utf-8"
+    )
+    (reports / "hedge_study_20260101T000000Z.json").write_text(
+        json.dumps({"gate_pass": True, "residual_beta": -0.02}), encoding="utf-8"
+    )
+    assert client.get("/api/readiness").json()["go_live_checklist"] == {
+        "b1_30_clean_sessions": False
+    }
+    assert client.get("/api/hedge").json()["gate_pass"] is True
