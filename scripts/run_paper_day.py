@@ -31,7 +31,8 @@ from artha.live.adapters.paper import PaperBroker
 from artha.live.oms import Oms, plan_orders
 from artha.live.safety import KillSwitch, alert, drawdown_action, reconcile
 from artha.marketspec.nse import NSECostModel
-from artha.portfolio.construct import ConstraintReport, Constructor
+from artha.portfolio.construct import ConstraintReport, production_constructor
+from artha.portfolio.riskmodel import risk_inputs
 
 
 def kite_ltp_override(quotes: dict[str, float], symbols: list[str]) -> str:
@@ -167,19 +168,22 @@ def main() -> int:
             .sort("score", descending=True)
             .head(25)
         )
-        constructor = Constructor(capital=args.capital, sector_map=sector_map)
+        constructor = production_constructor(args.capital, sector_map)
         creport = ConstraintReport()
         prior = {
             sym: qty * quotes.get(sym, 0.0) / equity for sym, qty in broker.positions().items()
         }
         if quote_source == "kite_ltp":
             kite_ltp_override(quotes, sorted(set(scored["canon_symbol"])))
+        vols_in, cov_in = risk_inputs(universe, list(scored["canon_symbol"]), today)
         targets = constructor.build(
             [(s, adv.get(s, 0.0)) for s in scored["canon_symbol"]],
             prior,
             trailing_book_vol(live_dir / "paper_log.jsonl"),
             creport,
             adv_map=adv,
+            vols=vols_in,
+            cov=cov_in,
         )
         if creport.violations:
             kill.freeze(f"constraint violations: {creport.violations[:3]}")

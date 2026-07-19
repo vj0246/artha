@@ -39,6 +39,17 @@ TARGET_VOL: Final = 0.135  # midpoint of the plan's 12-15% band
 _TOL: Final = 1e-9
 
 
+def production_constructor(capital: float, sector_map: dict[str, str]) -> "Constructor":
+    """THE live configuration. Single source of truth for every script that
+    trades or replays the production book (paper day, weekly review,
+    readiness) — change here, nowhere else.
+
+    Since 2026-07-19 (Track C gate, docs/research/track-c-study.md):
+    Ledoit-Wolf min-var weights + Garleanu-Pedersen tau 0.5 — Sharpe 1.055
+    vs 0.960 equal+bands, maxDD -21% vs -27%, turnover 3.8x vs 5.2x."""
+    return Constructor(capital=capital, sector_map=sector_map, scheme="minvar", trade_speed=0.5)
+
+
 @dataclass
 class ConstraintReport:
     violations: list[str] = field(default_factory=list)

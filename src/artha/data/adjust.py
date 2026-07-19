@@ -12,6 +12,7 @@ Backward adjustment: prices strictly before an ex-date are multiplied by the
 product of all later factors; volumes are divided by it.
 """
 
+import sys
 from typing import Final
 
 import polars as pl
@@ -160,6 +161,39 @@ def apply_adjustment(panel: pl.DataFrame, events: pl.DataFrame) -> pl.DataFrame:
         .group_by("canon_symbol", pl.col("_session_date").alias("trade_date"))
         .agg(pl.col("factor").product())
     )
+
+    # Declared-feed sanity gate (found live 2026-07-19: the CA feed declared
+    # a 1:5 TVSMOTOR split ex 2025-08-25 whose price never split, creating a
+    # phantom +398% adjusted return). A material factor must be visible in
+    # the ex-day price: prev_close is the RAW prior close (ADR 0005), so
+    # close/prev_close estimates the true factor. Reject declared factors
+    # that the price contradicts by more than 2.5x; factors near 1 are
+    # indistinguishable from market moves and pass unchecked.
+    checked = snapped.join(
+        panel.select("canon_symbol", "trade_date", "close", "prev_close"),
+        on=["canon_symbol", "trade_date"],
+        how="left",
+    ).with_columns((pl.col("close") / pl.col("prev_close")).alias("_ratio"))
+    material = (pl.col("factor") < 0.8) | (pl.col("factor") > 1.25)
+    implausible = (
+        material
+        & pl.col("_ratio").is_not_null()
+        & (pl.col("prev_close") > 0)
+        & (
+            ((pl.col("_ratio") / pl.col("factor")) > 2.5)
+            | ((pl.col("_ratio") / pl.col("factor")) < 0.4)
+        )
+    )
+    rejected = checked.filter(implausible)
+    for r in rejected.iter_rows(named=True):
+        print(
+            f"WARNING: rejected declared factor {r['factor']:.4f} for "
+            f"{r['canon_symbol']} ex {r['trade_date']}: ex-day close/prev "
+            f"{r['_ratio']:.4f} shows no such event",
+            file=sys.stderr,
+        )
+    snapped = checked.filter(~implausible).select("canon_symbol", "trade_date", "factor")
+
     with_f = panel.join(
         snapped,
         on=["canon_symbol", "trade_date"],

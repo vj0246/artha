@@ -252,3 +252,32 @@ class TestApplyAdjustment:
         adjusted = apply_adjustment(panel, events)
         assert adjusted["cum_adj_factor"].to_list() == [1.0, 1.0]
         assert adjusted["adj_close"].to_list() == adjusted["close"].to_list()
+
+
+class TestDeclaredFeedSanityGate:
+    def test_phantom_declared_split_is_rejected(self) -> None:
+        # the TVSMOTOR case: feed declares a 1:5 split but the price never splits
+        bhav = mk_bhav(
+            [
+                (date(2025, 8, 22), "T", "EQ", 3294.6, 3280.9, 10),
+                (date(2025, 8, 25), "T", "EQ", 3284.7, 3294.6, 10),  # no 5x drop
+                (date(2025, 8, 26), "T", "EQ", 3272.3, 3284.7, 10),
+            ]
+        )
+        panel = equity_panel(bhav, NO_CHANGES)
+        events = adjustment_events(mk_declared([("T", date(2025, 8, 25), 0.2)]), NO_CHANGES)
+        adjusted = apply_adjustment(panel, events).sort("trade_date")
+        assert adjusted["cum_adj_factor"].to_list() == [1.0, 1.0, 1.0]
+
+    def test_genuine_split_passes_the_gate(self) -> None:
+        bhav = mk_bhav(
+            [
+                (date(2025, 8, 22), "G", "EQ", 1000.0, 990.0, 10),
+                (date(2025, 8, 25), "G", "EQ", 201.0, 1000.0, 50),  # real 1:5
+                (date(2025, 8, 26), "G", "EQ", 205.0, 201.0, 50),
+            ]
+        )
+        panel = equity_panel(bhav, NO_CHANGES)
+        events = adjustment_events(mk_declared([("G", date(2025, 8, 25), 0.2)]), NO_CHANGES)
+        adjusted = apply_adjustment(panel, events).sort("trade_date")
+        assert adjusted["cum_adj_factor"].to_list() == [0.2, 1.0, 1.0]

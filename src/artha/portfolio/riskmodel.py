@@ -10,9 +10,40 @@ disclosed heuristic that avoids a QP dependency and, per Jagannathan &
 Ma (2003), the clip itself acts as additional shrinkage.
 """
 
+from datetime import date
+
 import numpy as np
+import polars as pl
 
 MIN_OBS = 63  # fall back to equal weight below one quarter of history
+RISK_WINDOW = 252
+
+
+def risk_inputs(
+    panel: pl.DataFrame, names: list[str], asof: date, *, window: int = RISK_WINDOW
+) -> tuple[dict[str, float] | None, tuple[list[str], np.ndarray] | None]:
+    """(vols, cov) for the picks from panel history THROUGH ``asof`` —
+    the live-path twin of the backtester's wide-matrix slice. Returns
+    (None, None) when any name lacks MIN_OBS observations (constructor
+    then falls back to equal weight, same as in research)."""
+    hist = (
+        panel.filter(pl.col("canon_symbol").is_in(names) & (pl.col("trade_date") <= asof))
+        .sort("canon_symbol", "trade_date")
+        .with_columns(
+            (pl.col("adj_close") / pl.col("adj_close").shift(1) - 1)
+            .over("canon_symbol")
+            .alias("ret")
+        )
+    )
+    wide = hist.pivot(on="canon_symbol", index="trade_date", values="ret").sort("trade_date")
+    if any(n not in wide.columns for n in names):
+        return None, None
+    arr = wide.tail(window).select(names).to_numpy()
+    obs = (~np.isnan(arr)).sum(axis=0)
+    if arr.shape[0] == 0 or int(obs.min()) < MIN_OBS:
+        return None, None
+    vols = np.nanstd(arr, axis=0, ddof=1) * np.sqrt(252)
+    return dict(zip(names, vols.tolist(), strict=True)), (names, lw_shrunk_cov(arr))
 
 
 def lw_shrunk_cov(returns: np.ndarray) -> np.ndarray:

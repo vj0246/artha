@@ -23,7 +23,7 @@ from artha.data.universe import pit_universe
 from artha.features.baselines import momentum_12_1
 from artha.live.safety import alert
 from artha.marketspec.nse import nse_spec
-from artha.portfolio.construct import ConstraintReport, Constructor
+from artha.portfolio.construct import ConstraintReport, production_constructor
 
 DIVERGENCE_TOL_WEEKLY = 0.0025  # 25 bps/week unattributed = investigate
 
@@ -65,7 +65,7 @@ def main() -> int:
         r["canon_symbol"]: r["industry"] for r in master.iter_rows(named=True) if r["industry"]
     }
     capital = float(rows[0].get("equity", 2_500_000.0))
-    constructor = Constructor(capital=capital, sector_map=sector_map)
+    constructor = production_constructor(capital, sector_map)
     res = run_backtest(
         px,
         momentum_12_1(panel).filter(pl.col("trade_date").is_between(lo, hi)),

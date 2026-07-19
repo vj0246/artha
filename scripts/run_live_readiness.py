@@ -50,7 +50,7 @@ from artha.data.calendar import TradingCalendar
 from artha.data.universe import pit_universe
 from artha.features.baselines import momentum_12_1
 from artha.marketspec.nse import DP_CHARGE_RS, nse_spec
-from artha.portfolio.construct import Constructor
+from artha.portfolio.construct import production_constructor
 from artha.risk.live_eval import (
     kupiec_pof,
     min_track_record_length,
@@ -237,7 +237,7 @@ def section_sizing(settings: Any, capitals: list[float]) -> dict[str, Any]:
 
     out: dict[str, Any] = {"window_start": str(start), "levels": {}}
     for capital in capitals:
-        constructor = Constructor(capital=capital, sector_map=sector_map)
+        constructor = production_constructor(capital, sector_map)
         spec = nse_spec(cal, dp_order_value=capital / constructor.top_n)
         res = run_backtest(px, signal, spec, capital=capital, constructor=constructor)
         stats = summarize(res.daily)
@@ -302,7 +302,7 @@ def main() -> int:
             r["canon_symbol"]: r["industry"] for r in master.iter_rows(named=True) if r["industry"]
         }
         capital = rows[0]["equity"]
-        constructor = Constructor(capital=capital, sector_map=sector_map)
+        constructor = production_constructor(capital, sector_map)
         spec = nse_spec(TradingCalendar.from_frame(px), dp_order_value=capital / 25)
         signal = momentum_12_1(panel).filter(pl.col("trade_date") >= lookback_start)
         res = run_backtest(px, signal, spec, capital=capital, constructor=constructor)
