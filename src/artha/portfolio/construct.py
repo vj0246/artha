@@ -9,8 +9,15 @@ Long-only, top-N equal weight as the base, then:
   21-day median traded value, capping how far a weight can MOVE per
   rebalance at a given capital;
 - no-trade bands: deltas smaller than 25% of target weight do not trade;
+  OR (Track C C3, Garleanu-Pedersen style) ``trade_speed`` partial
+  adjustment: w_new = prior + tau * (target - prior), replacing bands;
 - volatility targeting: gross exposure scaled by target_vol / realized
   trailing vol, clamped to [0, 1] (no leverage); remainder is cash.
+
+Track C C2 weighting schemes inside the selected top-N: ``equal``
+(default), ``ivol`` (inverse trailing vol), ``minvar`` (long-only
+minimum variance from a Ledoit-Wolf shrunk covariance). ivol/minvar
+fall back to equal weight when risk inputs are missing.
 
 The constructor also emits per-rebalance constraint check results; the P5
 gate requires zero violations across the backtest.
@@ -18,6 +25,10 @@ gate requires zero violations across the backtest.
 
 from dataclasses import dataclass, field
 from typing import Final
+
+import numpy as np
+
+from artha.portfolio.riskmodel import inverse_vol_weights, min_var_weights
 
 TOP_N: Final = 25
 POSITION_CAP: Final = 0.06
@@ -47,6 +58,8 @@ class Constructor:
     target_vol: float = TARGET_VOL
     capital: float = 0.0
     sector_map: dict[str, str] = field(default_factory=dict)
+    scheme: str = "equal"  # equal | ivol | minvar (C2)
+    trade_speed: float | None = None  # partial adjustment tau; None = bands (C3)
 
     def build(
         self,
@@ -55,12 +68,15 @@ class Constructor:
         realized_vol: float | None,
         report: ConstraintReport,
         adv_map: dict[str, float] | None = None,
+        vols: dict[str, float] | None = None,
+        cov: tuple[list[str], "np.ndarray"] | None = None,
     ) -> dict[str, float]:
         picks = ranked[: self.top_n]
         if not picks:
             return dict(prior_weights)
-        base = 1.0 / len(picks)
-        weights = {sym: min(base, self.position_cap) for sym, _ in picks}
+        names = [sym for sym, _ in picks]
+        weights = self._base_weights(names, vols, cov)
+        weights = {sym: min(w, self.position_cap) for sym, w in weights.items()}
         weights = self._apply_sector_cap(weights)
 
         # vol targeting scales gross before banding/participation
@@ -68,12 +84,15 @@ class Constructor:
             gross = min(1.0, self.target_vol / realized_vol)
             weights = {s: w * gross for s, w in weights.items()}
 
-        # no-trade bands vs prior (drifted) weights
+        # trading rule vs prior (drifted) weights: no-trade bands, or
+        # Garleanu-Pedersen partial adjustment when trade_speed is set
         banded: dict[str, float] = {}
         for sym in set(weights) | set(prior_weights):
             target = weights.get(sym, 0.0)
             prior = prior_weights.get(sym, 0.0)
-            if target > 0 and abs(target - prior) < self.no_trade_band * target:
+            if self.trade_speed is not None:
+                banded[sym] = prior + self.trade_speed * (target - prior)
+            elif target > 0 and abs(target - prior) < self.no_trade_band * target:
                 banded[sym] = prior  # hold
             else:
                 banded[sym] = target
@@ -105,6 +124,18 @@ class Constructor:
 
         self._verify(banded, report)
         return banded
+
+    def _base_weights(
+        self,
+        names: list[str],
+        vols: dict[str, float] | None,
+        cov: tuple[list[str], "np.ndarray"] | None,
+    ) -> dict[str, float]:
+        if self.scheme == "ivol" and vols:
+            return inverse_vol_weights(names, vols)
+        if self.scheme == "minvar" and cov is not None and cov[0] == names:
+            return min_var_weights(names, cov[1])
+        return dict.fromkeys(names, 1.0 / len(names))
 
     def _apply_sector_cap(self, weights: dict[str, float]) -> dict[str, float]:
         for _ in range(10):

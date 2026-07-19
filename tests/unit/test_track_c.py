@@ -1,0 +1,103 @@
+"""Track C: risk model, SPA test, construction v2 mechanics."""
+
+import numpy as np
+import pytest
+
+from artha.models.spa import spa_test, stationary_bootstrap_indices
+from artha.portfolio.construct import ConstraintReport, Constructor
+from artha.portfolio.riskmodel import inverse_vol_weights, lw_shrunk_cov, min_var_weights
+
+
+class TestRiskModel:
+    def test_lw_shrinks_toward_identity(self) -> None:
+        rng = np.random.default_rng(1)
+        true_cov = np.array([[1.0, 0.6], [0.6, 1.0]]) * 1e-4
+        chol = np.linalg.cholesky(true_cov)
+        x = rng.standard_normal((60, 2)) @ chol.T  # short sample -> noisy
+        shrunk = lw_shrunk_cov(x)
+        sample = np.cov(x.T, bias=True)
+        # off-diagonal moves toward zero (identity target), diagonal preserved in scale
+        assert abs(shrunk[0, 1]) < abs(sample[0, 1])
+        assert shrunk[0, 0] == pytest.approx(sample[0, 0], rel=0.5)
+
+    def test_lw_handles_nans(self) -> None:
+        x = np.random.default_rng(2).standard_normal((100, 3)) * 0.01
+        x[:40, 1] = np.nan
+        cov = lw_shrunk_cov(x)
+        assert np.all(np.isfinite(cov))
+
+    def test_inverse_vol_known_answer(self) -> None:
+        w = inverse_vol_weights(["a", "b"], {"a": 0.1, "b": 0.2})
+        assert w["a"] == pytest.approx(2 / 3)
+        assert w["b"] == pytest.approx(1 / 3)
+
+    def test_min_var_uncorrelated_known_answer(self) -> None:
+        # uncorrelated: w propto 1/sigma^2 -> (0.04, 0.01) vols 0.1/0.2 -> 0.8/0.2
+        cov = np.diag([0.1**2, 0.2**2])
+        w = min_var_weights(["a", "b"], cov)
+        assert w["a"] == pytest.approx(0.8)
+        assert w["b"] == pytest.approx(0.2)
+
+    def test_min_var_long_only_clip(self) -> None:
+        # strong correlation makes raw min-var short one asset; clip keeps it long-only
+        cov = np.array([[0.01, 0.0198], [0.0198, 0.04]])
+        w = min_var_weights(["a", "b"], cov)
+        assert min(w.values()) >= 0
+        assert sum(w.values()) == pytest.approx(1.0)
+
+
+class TestSpa:
+    def test_bootstrap_indices_shape_and_range(self) -> None:
+        idx = stationary_bootstrap_indices(100, 50)
+        assert idx.shape == (50, 100)
+        assert idx.min() >= 0
+        assert idx.max() < 100
+
+    def test_null_family_not_rejected(self) -> None:
+        rng = np.random.default_rng(3)
+        d = rng.normal(0.0, 0.01, size=(750, 8))  # zero-mean family
+        res = spa_test(d, n_boot=400, seed=3)
+        assert res.spa_p_value > 0.05
+        assert res.rc_p_value > 0.05
+
+    def test_strong_alternative_rejected(self) -> None:
+        rng = np.random.default_rng(4)
+        d = rng.normal(0.0, 0.01, size=(750, 8))
+        d[:, 2] += 0.002  # ~50% ann. edge at 16% vol: unmistakable
+        res = spa_test(d, n_boot=400, seed=4)
+        assert res.spa_p_value < 0.05
+        assert res.best_strategy == 2
+
+    def test_spa_less_conservative_than_rc_with_bad_padding(self) -> None:
+        rng = np.random.default_rng(5)
+        d = rng.normal(0.0, 0.01, size=(750, 6))
+        d[:, 0] += 0.0008  # modest real edge
+        d[:, 3:] -= 0.003  # deeply losing padding strategies
+        res = spa_test(d, n_boot=400, seed=5)
+        assert res.spa_p_value <= res.rc_p_value + 0.05
+
+
+class TestConstructionV2:
+    def test_partial_adjustment_moves_fraction(self) -> None:
+        c = Constructor(top_n=2, trade_speed=0.5, position_cap=1.0)
+        target = c.build([("a", 1e9), ("b", 1e9)], {"a": 0.0, "b": 0.0}, None, ConstraintReport())
+        # from zero toward 0.5 each at tau=0.5 -> 0.25 each
+        assert target["a"] == pytest.approx(0.25)
+        assert target["b"] == pytest.approx(0.25)
+
+    def test_ivol_scheme_tilts_to_low_vol(self) -> None:
+        c = Constructor(top_n=2, scheme="ivol", position_cap=1.0)
+        target = c.build(
+            [("calm", 1e9), ("wild", 1e9)],
+            {},
+            None,
+            ConstraintReport(),
+            vols={"calm": 0.10, "wild": 0.40},
+        )
+        assert target["calm"] > target["wild"]
+
+    def test_schemes_fall_back_to_equal_without_inputs(self) -> None:
+        for scheme in ("ivol", "minvar"):
+            c = Constructor(top_n=2, scheme=scheme, position_cap=1.0)
+            target = c.build([("a", 1e9), ("b", 1e9)], {}, None, ConstraintReport())
+            assert target["a"] == pytest.approx(target["b"])

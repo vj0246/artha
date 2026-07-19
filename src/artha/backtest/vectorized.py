@@ -22,10 +22,14 @@ from dataclasses import dataclass
 from datetime import date
 from typing import cast
 
+import numpy as np
 import polars as pl
 
 from artha.marketspec.base import MarketSpec
 from artha.portfolio.construct import ConstraintReport, Constructor
+from artha.portfolio.riskmodel import MIN_OBS, lw_shrunk_cov
+
+RISK_WINDOW = 252  # trailing daily returns feeding the C2 risk model
 
 ADV_WINDOW = 21
 # vol targeting uses the LARGER of a fast and slow estimate: the fast window
@@ -62,6 +66,7 @@ def run_backtest(
     capital: float = 0.0,
     constructor: Constructor | None = None,
     report: ConstraintReport | None = None,
+    gross_gate: dict[date, float] | None = None,
 ) -> BacktestResult:
     """``panel`` needs canon_symbol, trade_date, adj_close, traded_value,
     in_universe. ``signal``: (canon_symbol, trade_date, score). ``capital``
@@ -70,7 +75,9 @@ def run_backtest(
     With a ``constructor``, targets come from the constrained construction
     (caps, bands, vol targeting; possibly gross < 1 with the rest in cash)
     instead of naive top-N equal weight; pass a ConstraintReport to collect
-    per-rebalance verification results."""
+    per-rebalance verification results. ``gross_gate`` (C4) maps rebalance
+    dates to a multiplier applied to the built target's gross — values must
+    be computed from information knowable at that date's close."""
     px = panel.select(
         "canon_symbol", "trade_date", "adj_close", "traded_value", "in_universe"
     ).sort("canon_symbol", "trade_date")
@@ -100,6 +107,18 @@ def run_backtest(
         .items()
     }
     all_days = cal.days
+
+    # wide returns matrix for the C2 risk model (built once, sliced per
+    # rebalance; every slice ends at the rebalance close - knowable at t)
+    need_risk = constructor is not None and constructor.scheme in ("ivol", "minvar")
+    wide_np = np.empty((0, 0))
+    wide_row: dict[date, int] = {}
+    wide_col: dict[str, int] = {}
+    if need_risk:
+        wide = px.pivot(on="canon_symbol", index="trade_date", values="ret").sort("trade_date")
+        wide_row = {d: i for i, d in enumerate(wide["trade_date"].to_list())}
+        wide_col = {s: i for i, s in enumerate(wide.columns[1:])}
+        wide_np = wide.drop("trade_date").to_numpy()
 
     weights: dict[str, float] = {}
     adv: dict[str, float] = {}
@@ -188,13 +207,31 @@ def run_backtest(
                         realized = _ann_vol(fast)
                         if len(slow) >= VOL_LOOKBACK_SLOW:
                             realized = max(realized, _ann_vol(slow))
+                    vols_in: dict[str, float] | None = None
+                    cov_in: tuple[list[str], np.ndarray] | None = None
+                    if need_risk and day in wide_row:
+                        r = wide_row[day]
+                        cols = [wide_col[s] for s in picks["canon_symbol"]]
+                        window = wide_np[max(0, r - RISK_WINDOW + 1) : r + 1][:, cols]
+                        obs = (~np.isnan(window)).sum(axis=0)
+                        if int(obs.min()) >= MIN_OBS:
+                            sd = np.nanstd(window, axis=0, ddof=1) * math.sqrt(252)
+                            vols_in = dict(zip(picks["canon_symbol"], sd.tolist(), strict=True))
+                            if constructor.scheme == "minvar":
+                                cov_in = (list(picks["canon_symbol"]), lw_shrunk_cov(window))
                     target = constructor.build(
                         list(zip(picks["canon_symbol"], picks["adv_value"], strict=True)),
                         dict(weights),
                         realized,
                         report if report is not None else ConstraintReport(),
                         adv_map=dict(adv),
+                        vols=vols_in,
+                        cov=cov_in,
                     )
+                if gross_gate is not None:
+                    gate = gross_gate.get(day, 1.0)
+                    if gate < 1.0:
+                        target = {s: w * gate for s, w in target.items()}
                 pending = (i + exec_lag, target)
                 rebalance_rows.append(
                     {
