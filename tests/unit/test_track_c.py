@@ -140,3 +140,44 @@ class TestReviewHardening:
         # covered subset gets min-var (a > b), newcomer gets the 1/N share
         assert t["a"] > t["b"]
         assert t["newlisting"] == pytest.approx(1 / 3)
+
+
+class TestTrackE:
+    def test_ewma_cov_weights_recent_days_more(self) -> None:
+        from artha.portfolio.riskmodel import ewma_cov
+
+        rng = np.random.default_rng(6)
+        calm = rng.normal(0, 0.005, (200, 2))
+        stormy = rng.normal(0, 0.05, (20, 2))
+        x = np.vstack([calm, stormy])  # recent regime is violent
+        e = ewma_cov(x)
+        flat = np.cov(x.T, bias=True)
+        # EWMA variance responds to the recent storm far more than the flat window
+        assert e[0, 0] > 2 * flat[0, 0]
+
+    def test_ewma_cov_symmetric_finite(self) -> None:
+        from artha.portfolio.riskmodel import ewma_cov
+
+        x = np.random.default_rng(7).normal(0, 0.01, (252, 5))
+        x[:30, 2] = np.nan
+        e = ewma_cov(x)
+        assert np.allclose(e, e.T)
+        assert np.all(np.isfinite(e))
+
+    def test_psi_zero_for_same_distribution_large_for_shift(self) -> None:
+        import importlib.util
+        from pathlib import Path
+
+        spec = importlib.util.spec_from_file_location(
+            "run_signal_health", Path("scripts/run_signal_health.py")
+        )
+        assert spec is not None
+        assert spec.loader is not None
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        rng = np.random.default_rng(8)
+        ref = rng.normal(0, 1, 5000)
+        same = rng.normal(0, 1, 5000)
+        shifted = rng.normal(1.5, 1, 5000)
+        assert mod.psi(ref, same) < 0.05
+        assert mod.psi(ref, shifted) > 0.25

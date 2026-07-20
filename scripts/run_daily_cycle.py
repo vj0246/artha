@@ -85,12 +85,13 @@ def main() -> int:
         ("news collector", [*py, "scripts/collect_news.py"]),  # D4; non-critical
         ("curated rebuild", [*py, "scripts/build_curated.py", "--incremental"]),
         ("integrity scan", [*py, "scripts/scan_raw_integrity.py"]),
+        ("signal health", [*py, "scripts/run_signal_health.py"]),  # E2; non-critical
         (
             "paper day",
             [*py, "scripts/run_paper_day.py", *(["--dry-run"] if args.dry_run else [])],
         ),
     ]
-    non_critical = {"news collector"}  # D4 archive: a feed outage must not stop trading
+    non_critical = {"news collector", "signal health"}  # monitoring must not stop trading
     for name, cmd in steps:
         if not run_step(name, cmd) and name not in non_critical:
             return 1

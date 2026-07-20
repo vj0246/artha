@@ -77,6 +77,19 @@ items true = GO candidate.
 modeled per fill from orders_log.jsonl; meaningful once quote_source
 is kite_ltp.
 
+## Signal health (E2, runs inside the daily cycle)
+
+`uv run --no-sync python scripts/run_signal_health.py` — momentum IC
+decay watch (63d/252d), PSI feature drift (alert > 0.25), DSR refresh
+vs the live ledger count. Appends signal_health.jsonl; alerts via
+Telegram.
+
+## Scheduled research refresh (E3) — REGISTERED 2026-07-20
+
+artha-monthly (1st, 10:00): research agent + SPA refresh.
+artha-quarterly (every 3rd month, 2nd, 10:00): construction study
+re-validation. Wrappers: scripts/artha_monthly.cmd / artha_quarterly.cmd.
+
 ## Dashboard (B5)
 
 `uv run --no-sync python scripts/run_dashboard.py [port]` — read-only

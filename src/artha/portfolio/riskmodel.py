@@ -56,6 +56,25 @@ def risk_inputs(
     return dict(zip(covered, vols.tolist(), strict=True)), (covered, lw_shrunk_cov(sub))
 
 
+EWMA_LAMBDA = 0.94  # RiskMetrics (1996) daily decay
+
+
+def ewma_cov(returns: np.ndarray, *, lam: float = EWMA_LAMBDA) -> np.ndarray:
+    """Exponentially weighted covariance (RiskMetrics) from a T x N daily
+    return matrix — the incremental 'each new day partially updates the
+    estimate' risk model (Track E E1). NaNs are column-mean imputed;
+    weights decay backward from the last row."""
+    x = np.array(returns, dtype=float)
+    col_mean = np.nanmean(x, axis=0)
+    inds = np.where(np.isnan(x))
+    x[inds] = np.take(col_mean, inds[1])
+    t = x.shape[0]
+    x = x - x.mean(axis=0)
+    w = lam ** np.arange(t - 1, -1, -1)
+    w /= w.sum()
+    return np.asarray((x * w[:, None]).T @ x)
+
+
 def lw_shrunk_cov(returns: np.ndarray) -> np.ndarray:
     """Ledoit-Wolf identity-target shrunk covariance from a T x N matrix
     of daily returns (rows = days). NaNs are column-mean imputed."""

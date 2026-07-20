@@ -27,7 +27,7 @@ import polars as pl
 
 from artha.marketspec.base import MarketSpec
 from artha.portfolio.construct import ConstraintReport, Constructor
-from artha.portfolio.riskmodel import MIN_OBS, lw_shrunk_cov
+from artha.portfolio.riskmodel import MIN_OBS, ewma_cov, lw_shrunk_cov
 
 RISK_WINDOW = 252  # trailing daily returns feeding the C2 risk model
 
@@ -67,6 +67,7 @@ def run_backtest(
     constructor: Constructor | None = None,
     report: ConstraintReport | None = None,
     gross_gate: dict[date, float] | None = None,
+    cov_estimator: str = "lw",
 ) -> BacktestResult:
     """``panel`` needs canon_symbol, trade_date, adj_close, traded_value,
     in_universe. ``signal``: (canon_symbol, trade_date, score). ``capital``
@@ -77,7 +78,9 @@ def run_backtest(
     instead of naive top-N equal weight; pass a ConstraintReport to collect
     per-rebalance verification results. ``gross_gate`` (C4) maps rebalance
     dates to a multiplier applied to the built target's gross — values must
-    be computed from information knowable at that date's close."""
+    be computed from information knowable at that date's close.
+    ``cov_estimator``: "lw" (Ledoit-Wolf on the flat window) or "ewma"
+    (RiskMetrics exponential weighting, Track E E1)."""
     px = panel.select(
         "canon_symbol", "trade_date", "adj_close", "traded_value", "in_universe"
     ).sort("canon_symbol", "trade_date")
@@ -227,7 +230,8 @@ def run_backtest(
                             sd = np.nanstd(sub, axis=0, ddof=1) * math.sqrt(252)
                             vols_in = dict(zip(covered, sd.tolist(), strict=True))
                             if constructor.scheme == "minvar":
-                                cov_in = (covered, lw_shrunk_cov(sub))
+                                est = ewma_cov if cov_estimator == "ewma" else lw_shrunk_cov
+                                cov_in = (covered, est(sub))
                     target = constructor.build(
                         list(zip(picks["canon_symbol"], picks["adv_value"], strict=True)),
                         dict(weights),

@@ -27,6 +27,14 @@ design, cost model, QA discipline, verify-list).
 
 ### Post-v2 execution changelog (kept current so VJ can follow every change)
 
+- 2026-07-20: Track E adopted and executed (docs/TRACK_E_PLAN.md, ADR 0009) — the honest
+  answer to daily retraining: production has no fitted parameters (and D5 measured retraining
+  cadence as irrelevant), so Track E ships EWMA-vs-LW covariance as a gated study (E1),
+  signal-health monitoring in the daily cycle (E2: IC decay, PSI drift, DSR refresh — first
+  run: IC healthy, dist_52w_low PSI 0.46 flagged, production DSR 0.20 vs 89-trial ledger),
+  monthly/quarterly scheduled research refresh (E3, tasks registered), credential-gated
+  execution-cost learning (E4), and a binding retrain-cadence policy (E5).
+
 - 2026-07-18: Track A complete (P0-P6); Track B built (P7-P9). Details in CLAUDE.md tracker
   and docs/research/.
 - 2026-07-19: Track B operations live (B1 clock started, daily 19:00 task); B2/B3 code built
