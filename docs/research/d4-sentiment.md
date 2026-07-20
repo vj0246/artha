@@ -18,10 +18,15 @@ flat, per-side NSE costs, vs the always-long floor.
    5-day IC on the locked name — consistent with P4's inverted-PEAD
    finding (Indian announcement reactions fade/reverse). Gating on it
    just keeps you out of the market (47% time-in) and behind the floor.
-2. GDELT's arm is data-starved (263 covered days spread over years)
-   and its tiny positive ICs are noise; it will be refreshed when the
-   throttled backfill completes, but no plausible completion turns
-   -0.33 into a win.
+2. GDELT's arm is data-starved (263 covered trading days) and its tiny
+   positive ICs are noise. Final archive state 2026-07-20: 72 of 115
+   months, 18,000 articles — the free DOC API rate-limits each pass to
+   ~12 months, and repeated passes for a result that cannot flip (the
+   gated strategy trails the floor by 0.33 Sharpe) is not a good use of
+   someone else's free service. `scripts/backfill_gdelt.py` is
+   idempotent: anyone wanting fuller coverage resumes it and reruns
+   `run_d4_sentiment.py`. The conclusion rests on the announcements
+   arm, whose corpus is complete.
 3. VADER on financial headlines is a blunt lexicon; a finance-tuned
    scorer (or the GROQ-gated LLM path) is the only untested upgrade,
    noted as future work — expectations low given (1).
