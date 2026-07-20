@@ -174,3 +174,77 @@ with realized-vs-modeled slippage.
 *Methods and per-phase evidence: docs/research/p1-audit.md through
 p5-portfolio-validation.md. Decision history: docs/decisions/. Trial
 count at publication: 22.*
+
+---
+
+# Part II: Production, Construction v2, and the Single-Name Laboratory
+
+Addendum, 2026-07-20 (Tracks B-E; each section has a full note in
+docs/research/ and every configuration is a ledger trial).
+
+## 7. From research to unattended operation (Track B)
+
+The validated strategy runs live-paper daily: an idempotent 19:00 cycle
+(incremental backfill -> curated rebuild -> integrity scan -> signal
+health -> paper trading -> reconcile -> alert) with deterministic order
+ids, kill-switch + enforced drawdown rails (-10% halves gross, -15%
+freezes), backtest/live parity as a CI gate, and a quantified go/no-go
+(PSR, minimum track record length, Kupiec VaR test, capital sizing).
+Sizing result worth stating: flat DP charges and integer shares make
+Rs 1L structurally unviable (38 bps per exit); minimum viable capital
+is Rs 2L, comfortable at Rs 5L. A NIFTY-futures beta hedge passed its
+gate (residual beta -0.02) and is shipped as a risk dial: stripping
+beta 0.58 costs ~3.4pp CAGR because the beta carried real return.
+
+## 8. Construction v2 (Track C): the literature-standard replacements
+
+Ledoit-Wolf min-var weights and Garleanu-Pedersen partial adjustment
+(tau 0.5) replaced equal weight and no-trade bands after a gated
+comparison. Post-hardening honest numbers: **Sharpe 1.018 vs 0.963
+equal-weight**, turnover 3.8-4.2x vs 5.2x; minvar and inverse-vol are
+statistically tied (~1.02). An instructive correction is part of the
+record: the first measurement (1.119, maxDD -21%) was inflated by a
+position-cap bug that silently parked gross in cash — accidental
+de-risking discovered by our own code review, fixed, and re-measured.
+Family-level data-snooping tests: White Reality Check p = 0.012,
+Hansen SPA p = 0.0415 vs the synthetic TRI. A Daniel-Moskowitz regime
+gate added nothing beyond the vol targeting already shipped (null);
+crowding inputs subtracted (null).
+
+## 9. The single-name laboratory (Track D): the retail literature, tested
+
+ICICIBANK, locked by objective screen. Four results:
+
+1. **Decomposition preprocessing is look-ahead** (the headline).
+   EMD/CEEMDAN applied full-series — as the forecasting literature does
+   — reproduces its spectacular numbers exactly (OOS IC 0.41, Sharpe
+   3.6 net); re-decomposing causally each day collapses them to zero.
+   The leaky-minus-causal gap IS the published edge.
+2. **No model beats holding the stock**: ridge, LGBM, GRU, LSTM, a
+   transformer, and their ensemble all land at or below half the
+   always-long floor net of per-side costs, under expanding AND
+   rolling retraining (the drift question, answered: staleness is not
+   the failure mode).
+3. **Sentiment gating subtracts value**: official announcement
+   sentiment (2,400 covered days) gates to Sharpe 0.06 vs 0.58
+   always-long, with negative 5-day IC — consistent with Part I's
+   inverted PEAD.
+4. Summary sentence: at the daily horizon on a liquid Indian
+   large-cap, every popular retail forecasting technique either leaks,
+   loses to buy-and-hold, or both.
+
+## 10. Adaptive estimation and the honest DSR (Track E)
+
+"Daily retraining" resolves to: EWMA covariance tested against
+Ledoit-Wolf (null — +0.005 Sharpe, worse drawdown, +9% turnover; LW
+stays), signal-health monitoring in the daily cycle (rolling IC decay,
+PSI feature drift, DSR refresh), and scheduled monthly/quarterly
+re-validation. The DSR refresh delivers this report's most important
+correction: **against the full 89-trial ledger, the production
+strategy's deflated Sharpe is 0.20** — economically attractive,
+statistically far from proven, and stated exactly that way. That
+number is conservative (the ledger counts every single-name experiment
+against the cross-sectional family), but its direction is the point:
+three days of intensive research spends statistical credibility, the
+ledger prices it, and only live out-of-sample time buys it back. The
+30-session paper gate now running is that purchase.

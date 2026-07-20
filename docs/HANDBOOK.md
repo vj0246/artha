@@ -47,7 +47,7 @@ Foundational choices, each with its "why":
 
 Headline results (all net of full Indian costs, details in
 docs/research/): production construction Sharpe ~1.02 (risk-model family vs 0.96 equal; post-hardening rerun 2026-07-20);
-family beats the index with Hansen SPA p = 0.0445; cross-sectional ML
+family beats the index with Hansen SPA p = 0.0415; production DSR 0.20 vs the full ledger; cross-sectional ML
 null (PBO 0.86); inverted Indian PEAD (t = -6.9); decomposition
 preprocessing exposed as 100% look-ahead (leaky IC 0.41 -> causal
 -0.04); futures hedge gate passed (residual beta -0.02) but shipped as
@@ -179,7 +179,7 @@ keywords, empty builtins — model output is audited before evaluation);
 fallback; `loop.py` ridge quick-screen vs the library baseline. Every
 screen appends to the ledger.
 
-**singlename/** — Track D. `preprocess.py`: wavelet/EMD/CEEMDAN
+**singlename/** — Track D. `evalutil.py`: shared costed long/flat metrics (per-side costs, analytics-consistent Sortino). `preprocess.py`: wavelet/EMD/CEEMDAN
 denoising + the causal_transform wrapper (no-lookahead property is
 unit-tested bit-identically). `models.py`: the D3 family — ridge,
 LGBM, GRU, LSTM, tiny transformer, with one fit/predict interface.
@@ -215,12 +215,14 @@ divergence), `run_live_readiness.py` (B3 go/no-go),
 `run_reconcile_readonly.py` (B2, needs credentials), `kite_login.py`
 (daily token), `run_kill_drill.py` (freeze->flatten rehearsal),
 `run_slippage_report.py` (realized vs modeled), `collect_news.py`
-(D4 RSS + sentiment), `run_dashboard.py` (localhost:8787).
+(D4 RSS + sentiment), `run_dashboard.py` (localhost:8787), `run_signal_health.py`
+(E2 daily monitor), `run_e1_ewma.py` (E1 study).
+`artha_monthly.cmd` / `artha_quarterly.cmd`: E3 scheduled wrappers.
 `artha_daily.cmd` / `artha_weekly.cmd`: the scheduled-task wrappers.
 
 ### tests/
 
-`unit/` — module behavior incl. the regression tests that encode past
+`unit/` (228 tests total across the suite) — module behavior incl. the regression tests that encode past
 bugs (vol-target feedback loop, missing-ADV freeze, phantom-CA gate,
 flatten bypass, causal-transform bit-identity, SPA properties).
 `lookahead/` — planted-jump, scrambled-signal, registry audit; CI

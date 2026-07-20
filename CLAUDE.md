@@ -1,60 +1,28 @@
 # Artha — Working Rules for Claude Code
 
 ## Phase tracker (update every session)
-**Plan v2 (2026-07-11) adopted: research Track A first. P1 gate passed
-2026-07-09; v2 section 5.0 acceptance audit PASSED 2026-07-12 (see
-docs/research/p1-audit.md): 19-name Yahoo spot-check green (caught and
-fixed combined bonus+split parsing and missing demerger/rights gap
-factors — ADR 0005 addendum), security master built, universe overlap
-evidenced. P1b gate PASSED 2026-07-13 (1.48M announcements, knowability rule; bulk
-deals deferred — API truncates at 70 rows/window). P2 gate PASSED
-2026-07-13 (docs/research/p2-baselines.md): MarketSpec + NSE cost model,
-weekly vectorized backtester (T+1-close execution), lookahead suite in
-CI (planted-jump, scrambled-signal, registry audit). Stylized facts net
-of costs 2012-2026: momentum 12-1 Sharpe 0.96/CAGR 23.6%, low-vol 1.08,
-reversal killed by 47x turnover (gross 0.72 -> net 0.17), benchmark
-0.87. P3 gate PASSED 2026-07-13 (docs/research/p3-model-study.md): 4 models,
-48 purged folds + 28 CPCV combos. Ridge best (IC 0.043, net Sharpe 0.84,
-DSR 0.998); transformer 0.89 on GPU; LGBM/MLP overfit fast signals
-(PBO 0.86). NO model beats P2 momentum 0.96/low-vol 1.08 net — honest
-null per plan 7.1. Synthetic TRI benchmarks + integrity scan shipped.
-P4 core code started (taxonomy + event-study framework committed).
-GPU note: CUDA torch via `uv pip install torch --index-url .../cu126
---reinstall`; `uv sync` reverts it; run with `uv run --no-sync`.
-P4 gate PASSED 2026-07-13: 355k events, 81% audited taxonomy, PEAD
-INVERTED in India, Model A vs B published null. P5 gate PASSED
-2026-07-18 (docs/research/p5-portfolio-validation.md): constructed
-momentum (caps/bands/ADV/vol-target 13.5%) — Sharpe 0.97, vol 13.45%
-IN BAND, maxDD halved to -27%, zero constraint violations, capacity
-flat to Rs 25Cr, beta 0.59/alpha 4%pa, DSR 0.64 @ 20 trials. Two bugs
-caught by the gate run: vol-target feedback loop (scale by unscaled
-book vol) and missing-ADV exit freeze (fail open). TRACK A COMPLETE 2026-07-18 (P0-P6; survivorship +2.5pp measured,
-report + README + blog in repo). TRACK B BUILT 2026-07-18
-(docs/research/p7-p9-track-b.md): P7 event engine + PARITY GATE in CI
-(fractional agrees to <2e-5/day; integer bounded by rounding); P8 live
-layer complete (PaperBroker, key-gated KiteAdapter, OMS with
-idempotent ids + pre-trade checks, kill switch, reconcile, Telegram,
-run_paper_day.py dry-run verified on real data) — 6-week paper clock
-starts when the runbook is scheduled daily; P9 US portability smoke
-passed (us_stub.py, pipeline unchanged). B4-B6 STRETCH DONE 2026-07-19
-(docs/research/b4-b6-stretch.md): B4 futures hedge GATE PASSED
-(residual beta -0.020; hedged 0.68 Sharpe/11% vol vs unhedged
-0.82/13.2% — overlay is a risk dial, beta carried return); B5 read-only
-dashboard (FastAPI + static page, scripts/run_dashboard.py); B6
-research agent (AST-sandboxed DSL, seed/Groq proposer, ridge quick
-screen — first run: 3 candidates, none beat library IC 0.0419).**
 
-- [x] P0-P6 Track A · [x] P7 engine+parity · [x] P8 live build
-  ([ ] 6-wk paper run — wall clock, needs daily scheduling)
-- [x] P9 US smoke · Track B roadmap: docs/TRACK_B_PLAN.md
-  ([x] B1 tooling · [x] B2 code (gate: creds + 1wk clean reconcile) ·
-  [x] B3 code (gate: B1+B2 + 4wk live) · [x] B4 · [x] B5 · [x] B6).
-  ALL Track B code built 2026-07-19; only VJ's credentials and wall
-  clocks remain. TRACK C EXECUTED 2026-07-19 (docs/TRACK_C_PLAN.md +
-  docs/research/track-c-study.md): minvar+tau0.5 construction wins
-  (Sharpe 1.055, DD -21%); SPA p=0.046 family beats TRI; regime-gate
-  null published; C5 blocked on creds. Verify-list dated 2026-07-19: NSE txn charge updated
-  0.00297%→0.00307%; SEBI retail-algo 10 orders/sec threshold n/a.
+**ALL FIVE TRACKS EXECUTED as of 2026-07-20.** Current state:
+
+- Track A (P0-P6 research) COMPLETE; Track B (P7-P9 + B1-B6 production)
+  BUILT with live paper ops running (daily 19:00 task, B1 clock day 1 =
+  2026-07-19 on minvar+tau0.5); Track C (construction v2 + SPA) EXECUTED;
+  Track D (single-name lab, ICICIBANK) COMPLETE with 4 nulls + the
+  leaky-decomposition exposure; Track E (adaptive estimation) EXECUTED
+  (E1 null, E2 signal-health live, E3 schedules registered).
+- Production config: production_constructor() = LW minvar + GP tau 0.5,
+  Sharpe 1.018 net (post-hardening; ADR 0008 has the 1.119->1.018
+  correction history). DSR 0.20 vs 89-trial ledger — cite this.
+- 10-finding code review 2026-07-20 fixed (fbceca4) + studies rerun.
+- Scheduled tasks: artha-daily 19:00, artha-weekly SAT 10:00,
+  artha-monthly 1st 10:00, artha-quarterly. Laptop must be ON.
+- WAITS ON VJ ONLY: Kite credentials (B2/C5/E4), funding >= Rs 2L (B3),
+  GROQ_API_KEY (optional), laptop uptime at 19:00.
+- Details: PROJECT_PLAN.md post-v2 changelog (authoritative history),
+  TRACK_B/C/D/E_PLAN.md statuses, docs/research/ notes, ADRs 0001-0009,
+  HANDBOOK.md (full onboarding), SYSTEM_OVERVIEW.md.
+- GPU note: CUDA torch via `uv pip install torch --index-url .../cu126
+  --reinstall`; `uv sync` reverts it; always `uv run --no-sync`.
 
 ## Rules
 1. Read `docs/PROJECT_PLAN.md` first. It is authoritative. When reality disagrees

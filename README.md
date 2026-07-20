@@ -3,125 +3,122 @@
 [![ci](https://github.com/vj0246/artha/actions/workflows/ci.yml/badge.svg)](https://github.com/vj0246/artha/actions/workflows/ci.yml)
 
 A survivorship-free, research-to-production quant platform for NSE cash
-equities — built from primary exchange sources, validated with Lopez de
-Prado-grade statistics, running live paper operations daily, and honest
-about what did not work.
+equities — primary exchange data, Lopez de Prado-grade validation,
+unattended daily paper operations, self-monitoring, and honest about
+every number including the ones that got worse under scrutiny.
 
-**Full study: [docs/research/ARTHA_RESEARCH_REPORT.md](docs/research/ARTHA_RESEARCH_REPORT.md)
+**Research report (Parts I + II): [docs/research/ARTHA_RESEARCH_REPORT.md](docs/research/ARTHA_RESEARCH_REPORT.md)
 · New-maintainer handbook: [docs/HANDBOOK.md](docs/HANDBOOK.md)
-· Live-ops plan: [docs/TRACK_B_PLAN.md](docs/TRACK_B_PLAN.md)**
+· System overview: [docs/SYSTEM_OVERVIEW.md](docs/SYSTEM_OVERVIEW.md)**
 
-## Headline results (net of full Indian costs, 2012-2026)
+## Headline results (net of full Indian costs)
 
-| Portfolio | CAGR | Vol | Sharpe | MaxDD |
+| Portfolio | CAGR | Sharpe | MaxDD | Turnover |
 |---|---|---|---|---|
-| **Constructed momentum (shipped)** | 12.9% | 13.5% | **0.97** | **−27%** |
-| Naive momentum 12-1 | 23.6% | 25.6% | 0.96 | −49% |
-| NIFTY 500 (synthetic TRI) | 14.4% | 16.0% | 0.95 | −38% |
-| Shipped + NIFTY futures hedge (2021-26) | 7.1% | 11.0% | 0.68 | −14% |
+| **LW min-var + GP τ0.5 (live config)** | 13.7% | **1.02** | −28% | 4.2× |
+| Equal-weight + bands (P5 baseline) | 12.8% | 0.96 | −27% | 5.2× |
+| Naive momentum 12-1 | 23.6% | 0.96 | −49% | — |
+| NIFTY 500 (synthetic TRI) | 14.4% | 0.95 | −38% | — |
 
-Construction (caps, bands, ADV participation, vol targeting) holds Sharpe
-while **halving the drawdown**. The futures hedge strips beta 0.58 to a
-residual −0.02 — reported honestly as a **risk dial, not a free lunch**
-(the beta carried real return; hedge drag 36 bps/yr).
+Family-level data-snooping tests: White Reality Check p = 0.012, Hansen
+SPA p = 0.0415. Deflated Sharpe against the full 89-trial ledger:
+**0.20** — economically attractive, statistically unproven, reported
+exactly that way while the 30-session live-paper gate accumulates the
+out-of-sample evidence.
 
-## Findings a recruiter should actually read
+## Findings a quant should actually read
 
-- **Survivorship bias, measured not assumed**: the identical strategy on a
-  survivor-only universe reports **+2.5pp/yr CAGR that never existed**
-  (23% of names — the delisted losers — vanish from a current-constituents
-  dataset).
-- **ML vs simple factors — published null**: ridge / LightGBM / MLP /
-  transformer under one purged walk-forward + CPCV protocol. Best ML
-  (ridge, IC 0.043) nets Sharpe 0.84 — **nothing beats momentum 0.96 /
-  low-vol 1.08 net of costs**. PBO = 0.86: the in-sample winner is overfit
-  24 times out of 28 combinatorial splits.
-- **Inverted PEAD in India — published null**: 1.48M exchange
-  announcements with receipt timestamps (58.5% land after the close — a
-  knowability rule enforces this). Big positive surprises **reverse**
-  (t = −6.9); event features add no incremental weekly alpha.
-- **Every trial counted**: an append-only ledger feeds the deflated Sharpe
-  (DSR 0.64 vs a 25-trial ledger) — economically strong, below the 95%
-  statistical bar, and reported exactly that way. An autonomous research
-  agent that proposes features through an AST-sandboxed DSL appends its
-  screens to the same ledger, so multiple-testing honesty survives
-  automation.
-- **Small-capital microstructure**: flat DP charges (₹15.34/scrip/day on
-  sells) and integer shares make ₹1L structurally unviable (38 bps per
-  exit, 5.2% weight granularity, Sharpe 1.03 vs 1.15 at ₹5L). Minimum
-  viable capital is measured, not guessed.
+- **Survivorship bias, measured**: the identical strategy on a
+  survivor-only universe reports +2.5pp/yr CAGR that never existed.
+- **Decomposition preprocessing is look-ahead** (single-name lab):
+  EMD/CEEMDAN full-series preprocessing reproduces the literature's
+  IC 0.41 / Sharpe 3.6 — and collapses to zero when re-decomposed
+  causally each day. The leaky-minus-causal gap IS the published edge.
+- **Published nulls, six of them**: cross-sectional ML vs factors
+  (PBO 0.86); event features at weekly horizon (with inverted Indian
+  PEAD, t = −6.9); regime gates beyond vol targeting; single-name model
+  zoo vs buy-and-hold (incl. LSTM/transformer, either retrain window);
+  sentiment gating (announcement sentiment: Sharpe 0.06 vs 0.58 floor);
+  EWMA vs Ledoit-Wolf covariance.
+- **A self-caught correction, kept in the record**: construction v2's
+  first headline (Sharpe 1.119, maxDD −21%) was inflated by a
+  position-cap bug acting as accidental de-risking; our own code review
+  found it, the honest number is 1.018, and both figures stay in the
+  report because the correction is the credential.
+- **Small-capital microstructure**: flat ₹15.34 DP charges + integer
+  shares make ₹1L structurally unviable (38 bps/exit, 5.2% weight
+  steps); minimum viable capital is measured at ₹2L, comfortable at ₹5L.
+- **Data feeds lie**: the declared corporate-action feed contained 14
+  phantom events (a fake 1:5 TVSMOTOR split manufactured a +398%
+  return). The adjuster now verifies every declared factor against the
+  ex-day price and persists rejections as QA artifacts.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
   subgraph DATA["PIT data layer"]
-    A[NSE bhavcopy<br/>dual format] --> C[immutable raw zone<br/>sha256 manifest]
-    B[declared CA feed<br/>+ announcements + F&O] --> C
-    C --> D[curated parquet<br/>adjusted, QA-gated]
+    A[NSE bhavcopy · CA feed<br/>announcements · F&O · news RSS/GDELT] --> C[immutable raw zone<br/>sha256 manifest]
+    C --> D[curated parquet<br/>CA sanity gate · QA]
   end
-  subgraph RESEARCH["research (Track A)"]
-    D --> E[feature library +<br/>PIT universe]
-    E --> F[purged WF-CV / CPCV<br/>DSR · PBO · trial ledger]
-    F --> G[construction: caps, bands,<br/>ADV, vol targeting]
+  subgraph RESEARCH["research machinery"]
+    D --> F[purged WF-CV · CPCV · DSR<br/>PBO · RC/SPA · trial ledger]
+    F --> G[construction: LW min-var<br/>GP τ · vol target · caps]
     G --> H[vectorized backtest<br/>T+1-close execution]
+    D --> LAB[single-name lab:<br/>causal preprocessing · model zoo · sentiment]
   end
-  subgraph LIVE["production (Track B)"]
-    H <-- parity gate in CI --> I[event-driven engine<br/>T+1 settlement, halts, bands]
-    I --> J[OMS: idempotent ids,<br/>pre-trade checks]
+  subgraph LIVE["production"]
+    H <-- parity gate in CI --> I[event-driven engine]
+    I --> J[OMS: idempotent ids<br/>pre-trade checks]
     J --> K[paper broker /<br/>key-gated Zerodha Kite]
-    K --> L[daily 19:00 cycle:<br/>backfill → rebuild → trade → reconcile]
-    L --> M[kill switch · drawdown rails<br/>readiness eval · dashboard]
+    K --> L[daily 19:00 cycle]
+  end
+  subgraph ADAPT["monitoring & refresh"]
+    L --> M[signal health: IC decay<br/>PSI drift · DSR refresh]
+    M --> N[weekly review · readiness eval<br/>monthly agent · quarterly re-validation]
+    N -. re-earns its seat .-> G
   end
 ```
 
 ## Production discipline
 
-- **Backtest/live parity is a CI gate**: the vectorized loop and the
-  event-driven engine agree to <2e-5/day on fractional shares; integer
-  differences are bounded by rounding.
-- **Zero-lookahead is a CI suite**, not a claim: planted-jump and
-  scrambled-signal tests (the planted jump caught a real
-  execution-ordering bug).
-- **Daily unattended operation** (Windows scheduled task): incremental
-  backfill → curated rebuild → integrity scan → paper trading → reconcile
-  → Telegram alert. Idempotent end to end — deterministic order ids make
-  a crashed rerun unable to double-trade.
-- **Enforced risk rails**: −10% from peak halves gross, −15% freezes; the
-  emergency flatten bypasses pre-trade caps by design; kill-switch drill
-  executed and logged.
-- **Go/no-go is quantified** (`scripts/run_live_readiness.py`):
-  Probabilistic Sharpe Ratio, minimum track record length, Kupiec VaR
-  exception test, live-vs-research tracking error, and capital sizing —
-  the report says exactly what a short live sample can and cannot prove.
-- **Read-only ops dashboard** (FastAPI + dependency-free page): equity
-  and benchmark charts, go-live checklist, sizing study, trial ledger.
+- Backtest/live **parity is a CI gate** (<2e-5/day); **zero-lookahead is
+  a CI suite** (planted-jump caught a real bug); the sanity gates run
+  both directions (prices vs declared CAs and back).
+- **Unattended daily operation**: scheduled 19:00 cycle, idempotent end
+  to end, one non-dry log row per session, `scheme_used` logged, kill
+  switch + enforced drawdown rails, emergency flatten that bypasses its
+  own pre-trade caps (tested with 85 positions).
+- **Self-monitoring**: IC decay + feature-drift (PSI) alerts daily; DSR
+  re-deflated against the live ledger; weekly live-vs-research replay
+  (with proper risk-model warmup); monthly research-agent screens and
+  quarterly re-validation, all ledgered.
+- **Quantified go/no-go**: PSR, minimum track record length, Kupiec VaR
+  exceptions, tracking error, capital sizing.
 
 ## Reproduce
 
 ```
 uv sync
-uv run pytest                      # 201 tests: unit, lookahead, parity
-uv run python scripts/backfill_bhavcopy.py 2010-01-01 2026-07-18
+uv run pytest                      # 228 tests: unit, lookahead, parity
+uv run python scripts/backfill_bhavcopy.py 2010-01-01 <today>
 uv run python scripts/build_curated.py
-uv run python scripts/run_baselines.py
-uv run python scripts/run_model_study.py
-uv run python scripts/run_p5.py
-uv run python scripts/run_survivorship_demo.py
-uv run python scripts/run_hedge_study.py
-uv run python scripts/run_dashboard.py     # http://127.0.0.1:8787
+uv run python scripts/run_baselines.py      # P2 factors
+uv run python scripts/run_model_study.py    # P3 ML null
+uv run python scripts/run_p5.py             # construction gate
+uv run python scripts/run_construction_v2.py && uv run python scripts/run_spa.py
+uv run python scripts/run_d2_preprocess.py  # the look-ahead exposure
+uv run python scripts/run_dashboard.py      # http://127.0.0.1:8787
 ```
 
-Data lands outside the repo (`~/quant-data`, override `ARTHA_DATA_DIR`).
-GPU legs use CUDA torch (`uv pip install torch --index-url
-https://download.pytorch.org/whl/cu126 --reinstall`, then `uv run
---no-sync`).
+Full bootstrap (every backfill, study, and scheduled task):
+[docs/HANDBOOK.md](docs/HANDBOOK.md). Data lives outside the repo
+(`~/quant-data`, override `ARTHA_DATA_DIR`).
 
 ## Honest limitations
 
-Synthetic TRI benchmark (no scriptable NIFTY 500 TRI source); static
-current-sector map; cash at 0%; rights/special dividends unadjusted
-(QA-flagged); hedge margin financing not modeled; announcement taxonomy
-81% accurate (audited); paper slippage degenerate until live quotes
-(close-fill by construction). Every limitation is tracked in the plan's
-verify-list with confirmation dates.
+Synthetic TRI benchmark; static current-sector map; cash at 0%; hedge
+margin financing unmodeled; paper slippage degenerate until live quotes;
+DSR 0.20 vs the full ledger (conservative counting, but the direction is
+the point); announcement taxonomy 81% accurate. Tracked in the plan's
+verify-list with dates.

@@ -47,14 +47,16 @@ of quant is knowing what does not work.
   net of costs (PBO 0.86); Indian PEAD is INVERTED (t = -6.9);
   construction alone lifts Sharpe 0.96 -> ~1.02 (post-hardening rerun)
   (Ledoit-Wolf min-var + Garleanu-Pedersen partial adjustment, Track
-  C); the family beats the index with SPA p = 0.0445; regime gates add
+  C); the family beats the index with SPA p = 0.0415 (DSR 0.20 vs the full 89-trial ledger — the honest figure); regime gates add
   nothing beyond vol targeting (null); decomposition preprocessing
   (EMD/CEEMDAN) is 100% look-ahead — leaky IC 0.41 collapses to -0.04
   causal (Track D2, the paper-grade result).
-- **Single-name lab** (Track D, ICICIBANK locked by composite screen):
-  preprocessing study done; model family (ridge/LGBM/GRU/LSTM/
-  transformer/ensemble) + drift arms running; news sentiment pipeline
-  collecting forward daily from 2026-07-19.
+- **Single-name lab** (Track D, ICICIBANK): COMPLETE — decomposition
+  = look-ahead; model zoo loses to buy-and-hold; sentiment gating
+  subtracts; news pipeline collects forward daily.
+- **Adaptive layer** (Track E): signal-health monitor daily (IC decay,
+  PSI drift, DSR refresh), EWMA-vs-LW null published, monthly agent +
+  quarterly re-validation scheduled; retrain-cadence policy binding.
 
 ## Production stack (Track B)
 
@@ -109,7 +111,7 @@ pretends tick data exists where it does not.
 
 ## Test surface
 
-220+ tests: unit, integration (real-data, skip without curated zone),
+228 tests: unit, integration (real-data, skip without curated zone),
 lookahead suite (planted-jump caught a real bug), backtest/live parity
 gate, CA sanity gate regressions, causal-transform bit-identity, SPA
 statistical properties. CI on every push; local gate = ruff + mypy
