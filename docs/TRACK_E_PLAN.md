@@ -89,3 +89,18 @@ slippage report) shipped in B3. Activates the week live quotes exist.
    scheduled re-run appends to the ledger BEFORE results are read.
 4. Structural changes (new estimator, new signal) remain gated
    studies with ADRs — never silent swaps.
+
+## Status 2026-07-20: TRACK E EXECUTED
+
+E1 NULL PUBLISHED: EWMA 1.023 vs LW 1.018 Sharpe (statistical noise)
+with worse drawdown (-29.8% vs -28.3%) and +9% turnover — the faster
+estimator buys responsiveness the strategy then pays for in churn. LW
+stays (report e1_ewma_20260720T051030Z.json; 2 ledger trials). E2 LIVE
+in the daily cycle — first run: momentum IC healthy (63d +0.026 / 252d
++0.035), dist_52w_low PSI 0.46 flagged (regime-shape drift, watch),
+and the DSR refresh delivered the multiple-testing bill: production
+Sharpe 1.018 deflates to DSR 0.20 against the 89-trial ledger
+(conservative — the count includes single-name D-track trials — but
+directionally the honest number). E3 REGISTERED: artha-monthly +
+artha-quarterly scheduled. E4 blocked on credentials. E5 policy
+binding.
