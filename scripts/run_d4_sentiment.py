@@ -64,7 +64,7 @@ def daily_index_from_gdelt(settings: Any) -> pl.DataFrame:
 
 def daily_index_from_announcements(settings: Any) -> pl.DataFrame:
     ann = (
-        pl.scan_parquet(settings.curated_dir / "events" / "**/*.parquet")
+        pl.scan_parquet(settings.curated_dir / "events" / "announcements.parquet")
         .filter(pl.col("symbol") == TICKER)
         .select("subject", "announced_at")
         .collect()

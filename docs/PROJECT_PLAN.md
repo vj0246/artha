@@ -61,7 +61,11 @@ design, cost model, QA discipline, verify-list).
   in the family (ridge/LGBM/GRU/LSTM/transformer/ensemble) beats always-long on ICICIBANK
   net of costs, under expanding OR rolling windows; OOS ICs ~0. Single-name lab conclusion:
   D2 leaky-preprocessing artifact + D3 efficient floor. No single-name model ships; the
-  cross-sectional book remains the edge. D4 sentiment evaluation pending GDELT completion. Millisecond data
+  cross-sectional book remains the edge.
+- 2026-07-20: D4 EXECUTED, TRACK D COMPLETE — sentiment gating loses to always-long on both
+  arms (announcements: gated 0.06 vs floor 0.58, 5d IC -0.036, consistent with inverted PEAD;
+  GDELT partial: -0.33). Null published (docs/research/d4-sentiment.md). Single-name lab
+  verdict: every popular retail technique leaks, loses to buy-and-hold, or both. Millisecond data
   recorded as credential-gated (Kite) and out of the validated EOD edge's scope.
 
 ---

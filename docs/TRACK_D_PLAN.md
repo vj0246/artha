@@ -127,3 +127,12 @@ D1 (one session, locks the ticker) -> D2 (core) -> D3 -> D4 (pipeline
 starts collecting forward data immediately at D1 time so the archive
 grows while D2-D3 run) -> D5. Ledger-first throughout; PROJECT_PLAN.md
 changelog updated at each phase completion.
+
+## Status 2026-07-20: TRACK D COMPLETE
+
+D1 ICICIBANK locked. D2: decomposition = look-ahead (gap +3.40 Sharpe
+per-side-costed). D3/D5: no model beats always-long, either window;
+null stands on corrected (chronological-sequence, per-side-cost)
+numbers. D4: sentiment gating subtracts value on both arms; null
+published. Forward news archive keeps collecting daily via the cycle.
+Research notes: d2-preprocessing.md, d3-d5-models.md, d4-sentiment.md.
