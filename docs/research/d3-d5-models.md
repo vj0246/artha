@@ -41,7 +41,7 @@ the ledger.
    100x more data the learners at least matched simple factors; with
    one series they cannot even pay their own transaction costs.
 5. **Consequence**: no single-name model ships. The money remains in
-   the cross-sectional book (Sharpe 1.12). D4's remaining question —
+   the cross-sectional book (net Sharpe ~1.02 post-hardening). D4's remaining question —
    whether news/announcement sentiment adds anything to an always-long
    or cross-sectional stance — is now the last open Track D item,
    pending the GDELT archive completing.

@@ -14,12 +14,16 @@
   Sharpe 1.018 net (post-hardening; ADR 0008 has the 1.119->1.018
   correction history). DSR 0.20 vs 89-trial ledger — cite this.
 - 10-finding code review 2026-07-20 fixed (fbceca4) + studies rerun.
+- C7 blend candidate HELD (ADR 0011): PBO 0.500 + family SPA 0.655 failed
+  the pre-registered gates. SPA claim corrected project-wide: the shipped
+  book wins on RISK-ADJUSTED return (Sharpe 1.02 vs index 0.94), not raw
+  excess return (13.7% vs 14.97% CAGR at lower vol).
 - Scheduled tasks: artha-daily 19:00, artha-weekly SAT 10:00,
   artha-monthly 1st 10:00, artha-quarterly. Laptop must be ON.
 - WAITS ON VJ ONLY: Kite credentials (B2/C5/E4), funding >= Rs 2L (B3),
   GROQ_API_KEY (optional), laptop uptime at 19:00.
 - Details: PROJECT_PLAN.md post-v2 changelog (authoritative history),
-  TRACK_B/C/D/E_PLAN.md statuses, docs/research/ notes, ADRs 0001-0009,
+  TRACK_B/C/D/E_PLAN.md statuses, docs/research/ notes, ADRs 0001-0011,
   HANDBOOK.md (full onboarding), SYSTEM_OVERVIEW.md.
 - GPU note: CUDA torch via `uv pip install torch --index-url .../cu126
   --reinstall`; `uv sync` reverts it; always `uv run --no-sync`.

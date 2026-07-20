@@ -268,3 +268,34 @@ The D2 finding is issued separately as a working paper:
 `PAPER_leaky_decomposition.md` — "Decomposition-Based Preprocessing in
 Retail Price Forecasting Is Look-Ahead: A Reproduction and Correction
 on Indian Equity Data."
+
+## 12. The blend verdict, and a correction to our own headline
+
+The C7 candidate went through its pre-registered battery and **did not
+pass**: PBO 0.500 (gate < 0.5) and family SPA p = 0.655 (gate < 0.05),
+against passes on sub-period stability (blend beats momentum in all
+three regimes) and DSR (0.55 vs 0.18). Production is unchanged. The
+weight sweep is worth recording anyway because it is a plateau, not a
+spike — every interior weight (0.25/0.50/0.75, Sharpe 1.23-1.30) beats
+both pure endpoints (1.02 momentum, 1.05 low-vol) — which is what a
+real diversification effect looks like, and simultaneously why PBO
+cannot identify the "best" weight: choosing among statistically
+indistinguishable configs is a coin flip by construction.
+
+The battery also corrected a claim this report made earlier. Track C's
+SPA rejection (p = 0.0415) came from a family that included the naive,
+fully-invested momentum baseline (CAGR 23.6%). Over CONSTRUCTED
+configurations only, SPA returns p = 0.655. The reason is structural,
+not a bug: SPA tests mean EXCESS RETURN, and the shipped configuration
+deliberately runs at 13.6% volatility against the index's 15.98% and
+below full investment, so its raw CAGR (13.7%) sits just under the
+index (14.97%) while its Sharpe (1.02) sits above (0.94).
+
+**The precise claim, therefore**: the shipped book delivers better
+risk-adjusted return and shallower drawdowns than the index at lower
+volatility — not more raw return than the index once the number of
+configurations tried is accounted for. That is a weaker claim than the
+one this report carried for a day, and it is the correct one. It is
+recorded here, in ADR 0011, and in every downstream document, because
+a project whose entire thesis is honest evaluation does not get to
+exempt its own headline from the same treatment.

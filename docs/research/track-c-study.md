@@ -10,6 +10,12 @@ trial ledger before results were read. Reports:
 
 ## C2 + C3: construction v2 (Ledoit-Wolf weights x trading speed)
 
+> **SUPERSEDED — read the post-hardening section at the end of this
+> note first.** The table below is the 2026-07-19 measurement; a
+> position-cap bug found on 2026-07-20 inflated min-var's figures
+> (1.119 -> 1.018 corrected). Both are kept: the correction is part
+> of the record.
+
 | config | Sharpe | CAGR | maxDD | turnover |
 |---|---|---|---|---|
 | equal + bands (P5 baseline) | 0.963 | 12.8% | −27.1% | 5.2x |
@@ -43,6 +49,13 @@ live configuration; paper day / weekly review / readiness consume it,
 equal-bands history archived, B1 clock restarted on minvar+tau0.5.
 
 ## C1: Reality Check / SPA (family of 10 vs synthetic NIFTY 500 TRI)
+
+> Post-hardening rerun values: RC p = 0.012, Hansen SPA p = 0.0415.
+> **IMPORTANT (ADR 0011):** that rejection is driven by the naive
+> fully-invested momentum baseline in this family. Over CONSTRUCTED
+> configurations only, SPA p = 0.655 — SPA tests raw excess return,
+> and the shipped vol-targeted book beats the index on Sharpe, not on
+> raw return. See docs/research/c7-blend.md.
 
 Family: 8 construction-v2 configs + naive momentum + naive low-vol.
 3,438 overlapping days, stationary bootstrap (21d mean block), 2,000

@@ -163,17 +163,57 @@ gate; evaluated inside the same C4 script and gate.
 
 ---
 
-## Status 2026-07-19: C1-C4+C6 EXECUTED (docs/research/track-c-study.md)
+## Status (current as of 2026-07-20)
 
-C2+C3 GATE PASSED with a winner: minvar + tau 0.5 — Sharpe 1.055 vs
-0.960 shipped, maxDD -21.2% vs -27.1%, turnover 3.8x vs 5.2x. DeMiguel
-1/N null REJECTED on this book. C1: RC p = 0.0125, SPA p = 0.046 — the
-family beats the synthetic TRI at 5% after snooping correction. C4+C6:
-NULL PUBLISHED — vol targeting already captures the crash premium; DM
-gate trades 0.05 Sharpe for 4.5 DD points (MAR wash), crowding input
-subtracts. Live paper stays on equal+bands until the B1 clock ends;
-minvar+tau0.5 adoption = one line + clock restart (VJ's call). C5
-still blocked on credentials.
+**C1 (SPA)** executed: White RC p = 0.012, Hansen SPA p = 0.0415 over
+the strategy family vs the synthetic TRI — the family beats the index
+after snooping correction.
+
+**C2+C3 (construction v2)** GATE PASSED and SHIPPED: Ledoit-Wolf
+min-var + Garleanu-Pedersen tau 0.5 is the live configuration since
+2026-07-19 (ADR 0008), via `production_constructor()`. Honest
+post-hardening numbers: **net Sharpe 1.018 vs 0.963 equal+bands**,
+turnover 4.2x vs 5.2x, drawdowns comparable. The first measurement
+(1.119, maxDD -21%) was inflated by a position-cap bug that parked
+gross in cash — found by our own code review 2026-07-20, fixed
+(redistribution), re-measured. min-var and inverse-vol are now
+statistically tied (~1.02); the config stays because switching between
+tied configs would restart the B1 clock for noise. DeMiguel 1/N null
+still rejected, by a smaller margin (+0.06).
+
+**C4+C6 (regime/crowding gate)**: NULL PUBLISHED — vol targeting
+already captures the crash premium; the DM gate trades 0.05 Sharpe for
+4.5 drawdown points (MAR wash) and the Amihud crowding input only
+subtracts. Machinery retained as a manual crisis lever.
+
+**C5 (execution study)**: still blocked on Kite credentials.
+
+## C7: momentum + low-vol signal blend (added 2026-07-20, ADR 0010)
+
+**What.** P2 measured momentum (0.96) and low-vol (1.08) as
+independent baselines before any construction work; production trades
+momentum alone. C7 tests the single obvious combination: a
+cross-sectional rank blend, swept over weights, under the production
+construction.
+
+**Why it was admitted despite the DSR budget.** The prior predates
+this project's search (both components measured in the first study),
+the signals are classically complementary, and the sweep is one
+pre-registered family rather than a fishing expedition.
+
+**Status 2026-07-20 — VERDICT: HOLD, unproven (ADR 0011).** First
+pass found blend(50/50) net Sharpe 1.297 vs 1.018 momentum-only. The
+pre-registered battery (`scripts/run_c7_validation.py`) then returned
+2 passes and 2 fails: sub-period stability PASS (blend wins all three
+regimes), DSR PASS (0.55 vs 0.18), **PBO 0.500 FAIL** (gate < 0.5),
+**family SPA p = 0.655 FAIL** (gate < 0.05). Production unchanged.
+The sweep is a plateau (interior weights 1.23-1.30 vs endpoints
+1.02/1.05), which is both evidence of real diversification and the
+reason PBO cannot identify a best weight. Decision path for a future
+verdict: a pre-registered two-config PBO ({momentum, blend-0.5}) at
+the next quarterly re-validation plus live evidence — deliberately not
+re-tested now. The battery also corrected the project's SPA claim; see
+ADR 0011 and docs/research/c7-blend.md.
 
 ## Sequencing and gates
 

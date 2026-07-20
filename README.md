@@ -21,9 +21,13 @@ every number including the ones that got worse under scrutiny.
 | Naive momentum 12-1 | 23.6% | 0.96 | −49% | — |
 | NIFTY 500 (synthetic TRI) | 14.4% | 0.95 | −38% | — |
 
-Family-level data-snooping tests: White Reality Check p = 0.012, Hansen
-SPA p = 0.0415. Deflated Sharpe against the full 89-trial ledger:
-**0.20** — economically attractive, statistically unproven, reported
+Family-level data-snooping (White RC p = 0.012, Hansen SPA p = 0.0415)
+rejects "nothing beats the index" for the family that includes the naive
+fully-invested momentum baseline. Over CONSTRUCTED configurations only,
+SPA p = 0.655: the shipped book wins on **risk-adjusted** return (Sharpe
+1.02 vs 0.94) and drawdown, at lower vol and slightly lower raw return
+than the index — stated precisely because the distinction matters
+(ADR 0011). Deflated Sharpe against the full ledger: **0.20** — economically attractive, statistically unproven, reported
 exactly that way while the 30-session live-paper gate accumulates the
 out-of-sample evidence.
 

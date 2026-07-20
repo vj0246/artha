@@ -27,6 +27,16 @@ design, cost model, QA discipline, verify-list).
 
 ### Post-v2 execution changelog (kept current so VJ can follow every change)
 
+- 2026-07-20 (C7 verdict + SPA correction, ADR 0011): the blend candidate ran its
+  pre-registered battery and was HELD, not shipped — PBO 0.500 (gate < 0.5) and family
+  SPA p = 0.655 (gate < 0.05) failed; sub-period stability and DSR passed. Production
+  unchanged. The battery also corrected a project claim: Track C's SPA rejection
+  (p = 0.0415) came from the naive fully-invested momentum baseline in that family; over
+  constructed configurations only, SPA p = 0.655, because SPA tests raw excess return and
+  the shipped vol-targeted book beats the index on Sharpe (1.02 vs 0.94) at lower vol and
+  slightly lower raw return. README, report, overview, handbook and Track C docs amended.
+  Stale doc claims swept (retired 1.055/1.119 figures marked superseded at point of use).
+
 - 2026-07-20 (wrap-up, ADR 0010): Track F published — working paper on the leaky-decomposition
   finding (PAPER_leaky_decomposition.md) + research report Part II complete. C7 blend study:
   momentum+low-vol 50/50 rank blend = Sharpe 1.297 vs 1.018 live — UPGRADE CANDIDATE, not
@@ -49,7 +59,8 @@ design, cost model, QA discipline, verify-list).
   ahead of credentials; B4-B6 stretch done. docs/TRACK_B_PLAN.md.
 - 2026-07-19: Track C research v2 executed (docs/TRACK_C_PLAN.md, ADR 0006): Ledoit-Wolf
   min-var + Garleanu-Pedersen tau 0.5 replaces equal-weight+bands as the production
-  construction (net Sharpe 1.12 vs 0.96, maxDD -21% vs -27%); Hansen SPA p = 0.0445 for the
+  construction (net Sharpe 1.12 vs 0.96, maxDD -21% vs -27% — SUPERSEDED, see the
+  2026-07-20 entry: corrected to 1.018 vs 0.963); Hansen SPA p = 0.0445 for the
   family vs the synthetic TRI; regime-gate null published. Declared-CA sanity gate added to
   the adjuster after six phantom split declarations were caught (TVSMOTOR et al.).
 - 2026-07-19: Track D adopted (docs/TRACK_D_PLAN.md, ADR 0007): single-name laboratory —

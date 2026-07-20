@@ -47,7 +47,7 @@ of quant is knowing what does not work.
   net of costs (PBO 0.86); Indian PEAD is INVERTED (t = -6.9);
   construction alone lifts Sharpe 0.96 -> ~1.02 (post-hardening rerun)
   (Ledoit-Wolf min-var + Garleanu-Pedersen partial adjustment, Track
-  C); the family beats the index with SPA p = 0.0415 (DSR 0.20 vs the full 89-trial ledger — the honest figure); regime gates add
+  C); the family containing naive momentum beats the index with SPA p = 0.0415, while constructed configurations alone give SPA p = 0.655 — the shipped book wins on risk-adjusted, not raw, return (ADR 0011); DSR 0.20 vs the full ledger; regime gates add
   nothing beyond vol targeting (null); decomposition preprocessing
   (EMD/CEEMDAN) is 100% look-ahead — leaky IC 0.41 collapses to -0.04
   causal (Track D2, the paper-grade result).
