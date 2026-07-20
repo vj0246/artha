@@ -248,3 +248,23 @@ against the cross-sectional family), but its direction is the point:
 three days of intensive research spends statistical credibility, the
 ledger prices it, and only live out-of-sample time buys it back. The
 30-session paper gate now running is that purchase.
+
+## 11. Wrap-up findings (C7, post-tax) and the working paper
+
+Two closing measurements. **The blend candidate**: a 50/50 rank blend
+of momentum and low-vol — the single combination with a clean pre-
+project prior (both components were measured independently in P2) —
+scores net Sharpe 1.297 / CAGR 16.1% under the production
+construction, exceeding both components by more than either exceeds
+the other: genuine diversification of pick streams. It is an upgrade
+CANDIDATE, deliberately not shipped until it passes the same battery
+(CPCV, SPA, DSR) that revised min-var's own headline downward.
+**The post-tax lens**: taxing FY-netted gains at STCG 20.8% (the
+realistic regime at ~3-month average holding) takes the production
+configuration from 13.7% to 11.0% CAGR and Sharpe 1.02 to 0.82 —
+the number a real account eats, stated before real money exists.
+
+The D2 finding is issued separately as a working paper:
+`PAPER_leaky_decomposition.md` — "Decomposition-Based Preprocessing in
+Retail Price Forecasting Is Look-Ahead: A Reproduction and Correction
+on Indian Equity Data."

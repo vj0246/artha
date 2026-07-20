@@ -27,6 +27,14 @@ design, cost model, QA discipline, verify-list).
 
 ### Post-v2 execution changelog (kept current so VJ can follow every change)
 
+- 2026-07-20 (wrap-up, ADR 0010): Track F published — working paper on the leaky-decomposition
+  finding (PAPER_leaky_decomposition.md) + research report Part II complete. C7 blend study:
+  momentum+low-vol 50/50 rank blend = Sharpe 1.297 vs 1.018 live — UPGRADE CANDIDATE, not
+  shipped pending the full validation battery + deliberate clock restart (c7-blend.md).
+  Post-tax lens: STCG 20.8% takes production from 13.7% to 11.0% CAGR, Sharpe 1.02 to 0.82
+  (run_posttax.py). Project state: wrap-up complete; all further progress gated on wall clocks
+  and VJ's credentials.
+
 - 2026-07-20: Track E adopted and executed (docs/TRACK_E_PLAN.md, ADR 0009) — the honest
   answer to daily retraining: production has no fitted parameters (and D5 measured retraining
   cadence as irrelevant), so Track E ships EWMA-vs-LW covariance as a gated study (E1),

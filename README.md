@@ -7,7 +7,8 @@ equities — primary exchange data, Lopez de Prado-grade validation,
 unattended daily paper operations, self-monitoring, and honest about
 every number including the ones that got worse under scrutiny.
 
-**Research report (Parts I + II): [docs/research/ARTHA_RESEARCH_REPORT.md](docs/research/ARTHA_RESEARCH_REPORT.md)
+**Working paper: [Decomposition preprocessing is look-ahead](docs/research/PAPER_leaky_decomposition.md)
+· Research report (Parts I + II): [docs/research/ARTHA_RESEARCH_REPORT.md](docs/research/ARTHA_RESEARCH_REPORT.md)
 · New-maintainer handbook: [docs/HANDBOOK.md](docs/HANDBOOK.md)
 · System overview: [docs/SYSTEM_OVERVIEW.md](docs/SYSTEM_OVERVIEW.md)**
 
@@ -45,6 +46,13 @@ out-of-sample evidence.
   position-cap bug acting as accidental de-risking; our own code review
   found it, the honest number is 1.018, and both figures stay in the
   report because the correction is the credential.
+- **A validated upgrade candidate, held to the bar**: the momentum +
+  low-vol rank blend scores Sharpe 1.30 vs 1.02 live — and stays
+  unshipped until it passes the same CPCV/SPA/DSR battery that revised
+  min-var's own headline downward.
+- **Post-tax truth**: STCG turns 13.7% CAGR into 11.0% (Sharpe 1.02 →
+  0.82) — computed before real money, because that's the number an
+  account actually compounds.
 - **Small-capital microstructure**: flat ₹15.34 DP charges + integer
   shares make ₹1L structurally unviable (38 bps/exit, 5.2% weight
   steps); minimum viable capital is measured at ₹2L, comfortable at ₹5L.
