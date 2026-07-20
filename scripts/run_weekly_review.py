@@ -55,10 +55,14 @@ def main() -> int:
     lo = live["trade_date"].min()
     hi = live["trade_date"].max()
 
-    # research replay over the same window
+    # research replay: the backtest needs a WARMUP before the live window
+    # (review finding 2026-07-20) — the min-var risk model needs >=63 obs
+    # per name and the tau partial adjustment needs a settled book, so the
+    # replay starts ~2y earlier and only the lo..hi segment is compared.
+    warmup_start = date(lo.year - 2, lo.month, 1)
     panel = pl.read_parquet(settings.curated_dir / "panel.parquet")
     universe = pit_universe(panel)
-    px = universe.filter(pl.col("trade_date").is_between(lo, hi))
+    px = universe.filter(pl.col("trade_date") >= warmup_start)
     cal = TradingCalendar.from_frame(px)
     master = pl.read_parquet(settings.curated_dir / "security_master.parquet")
     sector_map = {
@@ -68,14 +72,19 @@ def main() -> int:
     constructor = production_constructor(capital, sector_map)
     res = run_backtest(
         px,
-        momentum_12_1(panel).filter(pl.col("trade_date").is_between(lo, hi)),
+        momentum_12_1(panel).filter(pl.col("trade_date") >= warmup_start),
         nse_spec(cal, dp_order_value=capital / constructor.top_n),
         capital=capital,
         constructor=constructor,
         report=ConstraintReport(),
     )
-    research = res.daily.select(
-        "trade_date", ((1.0 + pl.col("net_return")).cum_prod() * capital).alias("research_equity")
+    research = (
+        res.daily.filter(pl.col("trade_date").is_between(lo, hi))
+        .sort("trade_date")
+        .select(
+            "trade_date",
+            ((1.0 + pl.col("net_return")).cum_prod() * capital).alias("research_equity"),
+        )
     )
     joined = live.join(research, on="trade_date", how="inner").with_columns(
         (pl.col("equity") / pl.col("research_equity") - 1).alias("divergence")

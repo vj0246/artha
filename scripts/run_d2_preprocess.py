@@ -33,6 +33,7 @@ from sklearn.linear_model import Ridge
 from artha.config import load_settings
 from artha.marketspec.nse import NSECostModel
 from artha.models.ledger import Trial, TrialLedger
+from artha.singlename.evalutil import long_flat_stats
 from artha.singlename.preprocess import (
     causal_transform,
     ceemdan_denoise,
@@ -117,8 +118,8 @@ def main() -> int:
     # round-trip charges for a full switch (sell + buy), plus impact at Rs 5L
     m = NSECostModel(dp_order_value=CAPITAL)
     adv = float(panel.filter(pl.col("canon_symbol") == TICKER)["traded_value"].tail(252).median())
-    cost_per_switch = m.sell_cost(CAPITAL, adv) + m.buy_cost(CAPITAL, adv)
-    print(f"cost per full switch: {cost_per_switch * 1e4:.1f} bps")
+    buy_rate, sell_rate = m.buy_cost(CAPITAL, adv), m.sell_cost(CAPITAL, adv)
+    print(f"cost per side: buy {buy_rate * 1e4:.1f} bps, sell {sell_rate * 1e4:.1f} bps")
 
     target = np.roll(rets, -1)  # target[t] = return t -> t+1
     target[-1] = np.nan
@@ -139,7 +140,7 @@ def main() -> int:
     results: dict[str, Any] = {}
     for name, feat in variants.items():
         preds = walk_forward_predictions(feat, target)
-        stats = evaluate(preds, target, cost_per_switch)
+        stats = long_flat_stats(preds, target, buy_rate=buy_rate, sell_rate=sell_rate)
         results[name] = stats
         ledger.append(
             Trial(

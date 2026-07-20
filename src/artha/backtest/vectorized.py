@@ -211,14 +211,23 @@ def run_backtest(
                     cov_in: tuple[list[str], np.ndarray] | None = None
                     if need_risk and day in wide_row:
                         r = wide_row[day]
-                        cols = [wide_col[s] for s in picks["canon_symbol"]]
+                        pick_names = list(picks["canon_symbol"])
+                        cols = [wide_col[s] for s in pick_names]
                         window = wide_np[max(0, r - RISK_WINDOW + 1) : r + 1][:, cols]
                         obs = (~np.isnan(window)).sum(axis=0)
-                        if int(obs.min()) >= MIN_OBS:
-                            sd = np.nanstd(window, axis=0, ddof=1) * math.sqrt(252)
-                            vols_in = dict(zip(picks["canon_symbol"], sd.tolist(), strict=True))
+                        # per-name coverage, mirroring riskmodel.risk_inputs:
+                        # a short-history name drops out of the risk model
+                        # alone instead of disabling it for the whole book
+                        covered = [
+                            n for n, o in zip(pick_names, obs.tolist(), strict=True) if o >= MIN_OBS
+                        ]
+                        if covered:
+                            keep = [pick_names.index(n) for n in covered]
+                            sub = window[:, keep]
+                            sd = np.nanstd(sub, axis=0, ddof=1) * math.sqrt(252)
+                            vols_in = dict(zip(covered, sd.tolist(), strict=True))
                             if constructor.scheme == "minvar":
-                                cov_in = (list(picks["canon_symbol"]), lw_shrunk_cov(window))
+                                cov_in = (covered, lw_shrunk_cov(sub))
                     target = constructor.build(
                         list(zip(picks["canon_symbol"], picks["adv_value"], strict=True)),
                         dict(weights),

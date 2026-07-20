@@ -31,6 +31,7 @@ from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from artha.config import load_settings
 from artha.marketspec.nse import NSECostModel
 from artha.models.ledger import Trial, TrialLedger
+from artha.singlename.evalutil import long_flat_stats
 
 TICKER = "ICICIBANK"
 CAPITAL = 500_000.0
@@ -90,11 +91,28 @@ def daily_index_from_announcements(settings: Any) -> pl.DataFrame:
     return scored.group_by("date").agg(pl.col("sentiment").mean(), pl.len().alias("n")).sort("date")
 
 
+def snap_to_sessions(index: pl.DataFrame, px: pl.DataFrame) -> pl.DataFrame:
+    """Roll each sentiment date forward to the next actual session (review
+    finding 2026-07-20: a raw calendar +1 sent weekend/holiday news to
+    dates that never join trade_date, silently dropping it)."""
+    sessions = px.select(pl.col("trade_date").alias("session")).sort("session")
+    return (
+        index.sort("date")
+        .join_asof(sessions, left_on="date", right_on="session", strategy="forward")
+        .drop_nulls("session")
+        .group_by("session")
+        .agg(pl.col("sentiment").mean(), pl.col("n").sum())
+        .rename({"session": "date"})
+        .sort("date")
+    )
+
+
 def evaluate_source(
-    name: str, index: pl.DataFrame, px: pl.DataFrame, cost_per_switch: float
+    name: str, index: pl.DataFrame, px: pl.DataFrame, buy_rate: float, sell_rate: float
 ) -> dict[str, Any]:
     if index.is_empty():
         return {"status": "no data"}
+    index = snap_to_sessions(index, px)
     j = (
         px.join(index, left_on="trade_date", right_on="date", how="left")
         .sort("trade_date")
@@ -113,25 +131,21 @@ def evaluate_source(
     ic1 = float(np.corrcoef(j["sent_5d"], j["fwd1"])[0, 1])
     j5 = j.drop_nulls("fwd5")
     ic5 = float(np.corrcoef(j5["sent_5d"], j5["fwd5"])[0, 1])
-    pos = (j["sent_5d"] > j["sent_med"]).cast(pl.Float64).to_numpy()
+    gate_signal = (j["sent_5d"] > j["sent_med"]).cast(pl.Float64).to_numpy()
     y = j["fwd1"].to_numpy()
-    switches = np.abs(np.diff(pos, prepend=0.0))
-    strat = pos * y - switches * cost_per_switch
-    always = y - np.where(np.arange(len(y)) == 0, cost_per_switch, 0.0)
-
-    def sharpe(x: np.ndarray) -> float:
-        sd = x.std(ddof=1)
-        return float(x.mean() / sd * np.sqrt(252)) if sd > 0 else 0.0
-
+    gated = long_flat_stats(
+        np.where(gate_signal > 0, 1.0, -1.0), y, buy_rate=buy_rate, sell_rate=sell_rate
+    )
+    always = long_flat_stats(np.ones_like(y), y, buy_rate=buy_rate, sell_rate=sell_rate)
     return {
         "n_days": int(j.height),
         "coverage_days": int(index.height),
         "ic_next_day": ic1,
         "ic_next_5d": ic5,
-        "gated_sharpe": sharpe(strat),
-        "always_long_sharpe": sharpe(always),
-        "gated_minus_always": sharpe(strat) - sharpe(always),
-        "time_in_market": float(pos.mean()),
+        "gated_sharpe": gated.get("net_sharpe", 0.0),
+        "always_long_sharpe": always.get("net_sharpe", 0.0),
+        "gated_minus_always": gated.get("net_sharpe", 0.0) - always.get("net_sharpe", 0.0),
+        "time_in_market": gated.get("time_in_market", 0.0),
     }
 
 
@@ -146,7 +160,7 @@ def main() -> int:
     )
     m = NSECostModel(dp_order_value=CAPITAL)
     adv = float(panel.filter(pl.col("canon_symbol") == TICKER)["traded_value"].tail(252).median())
-    cost_per_switch = m.sell_cost(CAPITAL, adv) + m.buy_cost(CAPITAL, adv)
+    buy_rate, sell_rate = m.buy_cost(CAPITAL, adv), m.sell_cost(CAPITAL, adv)
 
     ledger = TrialLedger(settings.reports_dir / "ledger.jsonl")
     results: dict[str, Any] = {}
@@ -154,7 +168,7 @@ def main() -> int:
         ("gdelt", daily_index_from_gdelt(settings)),
         ("announcements", daily_index_from_announcements(settings)),
     ]:
-        stats = evaluate_source(name, index, px, cost_per_switch)
+        stats = evaluate_source(name, index, px, buy_rate, sell_rate)
         results[name] = stats
         if "gated_sharpe" in stats:
             ledger.append(

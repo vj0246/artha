@@ -154,6 +154,7 @@ def main() -> int:
         alert(f"drawdown de-risk active: gross halved (equity {equity:.0f}, peak {peak:.0f})")
 
     report = None
+    scheme_used = "hold"
     if is_rebalance_day:
         master = pl.read_parquet(settings.curated_dir / "security_master.parquet")
         sector_map = {
@@ -176,6 +177,14 @@ def main() -> int:
         if quote_source == "kite_ltp":
             kite_ltp_override(quotes, sorted(set(scored["canon_symbol"])))
         vols_in, cov_in = risk_inputs(universe, list(scored["canon_symbol"]), today)
+        n_picks = scored.height
+        if cov_in is None:
+            scheme_used = "equal_fallback"
+            alert("risk model unavailable: book falls back to equal weight today")
+        elif len(cov_in[0]) < n_picks:
+            scheme_used = f"minvar_partial_{len(cov_in[0])}of{n_picks}"
+        else:
+            scheme_used = constructor.scheme
         targets = constructor.build(
             [(s, adv.get(s, 0.0)) for s in scored["canon_symbol"]],
             prior,
@@ -236,6 +245,7 @@ def main() -> int:
         "dry_run": args.dry_run,
         "quote_source": quote_source,
         "gross_scalar": gross_scalar,
+        "scheme_used": scheme_used,
     }
     live_dir.mkdir(parents=True, exist_ok=True)
     with (live_dir / "paper_log.jsonl").open("a", encoding="utf-8") as f:

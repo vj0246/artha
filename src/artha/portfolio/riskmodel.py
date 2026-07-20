@@ -23,9 +23,13 @@ def risk_inputs(
     panel: pl.DataFrame, names: list[str], asof: date, *, window: int = RISK_WINDOW
 ) -> tuple[dict[str, float] | None, tuple[list[str], np.ndarray] | None]:
     """(vols, cov) for the picks from panel history THROUGH ``asof`` —
-    the live-path twin of the backtester's wide-matrix slice. Returns
-    (None, None) when any name lacks MIN_OBS observations (constructor
-    then falls back to equal weight, same as in research)."""
+    the live-path twin of the backtester's wide-matrix slice.
+
+    Degrades PER NAME, never all-or-nothing (review finding 2026-07-20):
+    names lacking MIN_OBS observations are excluded from vols/cov, and
+    the constructor gives them an equal-weight share while the covered
+    subset still gets the risk model. (None, None) only when NO name has
+    enough history."""
     hist = (
         panel.filter(pl.col("canon_symbol").is_in(names) & (pl.col("trade_date") <= asof))
         .sort("canon_symbol", "trade_date")
@@ -36,14 +40,20 @@ def risk_inputs(
         )
     )
     wide = hist.pivot(on="canon_symbol", index="trade_date", values="ret").sort("trade_date")
-    if any(n not in wide.columns for n in names):
+    present = [n for n in names if n in wide.columns]
+    if not present:
         return None, None
-    arr = wide.tail(window).select(names).to_numpy()
+    arr = wide.tail(window).select(present).to_numpy()
+    if arr.shape[0] == 0:
+        return None, None
     obs = (~np.isnan(arr)).sum(axis=0)
-    if arr.shape[0] == 0 or int(obs.min()) < MIN_OBS:
+    covered = [n for n, o in zip(present, obs.tolist(), strict=True) if o >= MIN_OBS]
+    if not covered:
         return None, None
-    vols = np.nanstd(arr, axis=0, ddof=1) * np.sqrt(252)
-    return dict(zip(names, vols.tolist(), strict=True)), (names, lw_shrunk_cov(arr))
+    keep = [present.index(n) for n in covered]
+    sub = arr[:, keep]
+    vols = np.nanstd(sub, axis=0, ddof=1) * np.sqrt(252)
+    return dict(zip(covered, vols.tolist(), strict=True)), (covered, lw_shrunk_cov(sub))
 
 
 def lw_shrunk_cov(returns: np.ndarray) -> np.ndarray:

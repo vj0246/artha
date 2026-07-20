@@ -137,7 +137,12 @@ def combine_events(parsed: pl.DataFrame, gap: pl.DataFrame) -> pl.DataFrame:
     ).sort("canon_symbol", "ex_date")
 
 
-def apply_adjustment(panel: pl.DataFrame, events: pl.DataFrame) -> pl.DataFrame:
+def apply_adjustment(
+    panel: pl.DataFrame,
+    events: pl.DataFrame,
+    *,
+    rejections: list[dict[str, object]] | None = None,
+) -> pl.DataFrame:
     """Add cum_adj_factor and adjusted OHLCV columns (backward adjustment).
 
     A row's cumulative factor is the product of factors of events strictly
@@ -166,9 +171,13 @@ def apply_adjustment(panel: pl.DataFrame, events: pl.DataFrame) -> pl.DataFrame:
     # a 1:5 TVSMOTOR split ex 2025-08-25 whose price never split, creating a
     # phantom +398% adjusted return). A material factor must be visible in
     # the ex-day price: prev_close is the RAW prior close (ADR 0005), so
-    # close/prev_close estimates the true factor. Reject declared factors
-    # that the price contradicts by more than 2.5x; factors near 1 are
-    # indistinguishable from market moves and pass unchecked.
+    # close/prev_close estimates the true factor: ratio/factor = 1 + ex-day
+    # market move. Bounds (0.55, 1.6) allow a -45%..+60% genuine ex-day move
+    # and catch a phantom 2:1 (ratio/factor ~= 2.0), which the earlier 2.5x
+    # bound missed (review finding 2026-07-20). Factors near 1 are
+    # indistinguishable from market moves and pass unchecked. Rejections are
+    # appended to ``rejections`` (persisted by the curated build as a QA
+    # artifact) in addition to the stderr warning.
     checked = snapped.join(
         panel.select("canon_symbol", "trade_date", "close", "prev_close"),
         on=["canon_symbol", "trade_date"],
@@ -180,12 +189,21 @@ def apply_adjustment(panel: pl.DataFrame, events: pl.DataFrame) -> pl.DataFrame:
         & pl.col("_ratio").is_not_null()
         & (pl.col("prev_close") > 0)
         & (
-            ((pl.col("_ratio") / pl.col("factor")) > 2.5)
-            | ((pl.col("_ratio") / pl.col("factor")) < 0.4)
+            ((pl.col("_ratio") / pl.col("factor")) > 1.6)
+            | ((pl.col("_ratio") / pl.col("factor")) < 0.55)
         )
     )
     rejected = checked.filter(implausible)
     for r in rejected.iter_rows(named=True):
+        if rejections is not None:
+            rejections.append(
+                {
+                    "canon_symbol": r["canon_symbol"],
+                    "ex_date": str(r["trade_date"]),
+                    "factor": r["factor"],
+                    "ex_day_ratio": r["_ratio"],
+                }
+            )
         print(
             f"WARNING: rejected declared factor {r['factor']:.4f} for "
             f"{r['canon_symbol']} ex {r['trade_date']}: ex-day close/prev "

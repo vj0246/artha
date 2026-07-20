@@ -101,3 +101,42 @@ class TestConstructionV2:
             c = Constructor(top_n=2, scheme=scheme, position_cap=1.0)
             target = c.build([("a", 1e9), ("b", 1e9)], {}, None, ConstraintReport())
             assert target["a"] == pytest.approx(target["b"])
+
+
+class TestReviewHardening:
+    def test_partial_adjustment_full_exit_below_epsilon(self) -> None:
+        c = Constructor(top_n=1, trade_speed=0.5, position_cap=1.0)
+        # dropped name below the exit epsilon liquidates fully, no zombie tail
+        target = c.build([("a", 1e9)], {"a": 1.0, "gone": 0.004}, None, ConstraintReport())
+        assert "gone" not in target
+        # above the epsilon it still decays gradually (GP behavior kept)
+        target = c.build([("a", 1e9)], {"a": 0.94, "big": 0.04}, None, ConstraintReport())
+        assert target["big"] == pytest.approx(0.02)
+
+    def test_position_cap_excess_redistributes(self) -> None:
+        c = Constructor(top_n=3, scheme="minvar", position_cap=0.10)
+        cov = np.diag([0.01**2, 0.3**2, 0.3**2])  # min-var loads name a heavily
+        t = c.build(
+            [("a", 1e9), ("b", 1e9), ("c", 1e9)],
+            {},
+            None,
+            ConstraintReport(),
+            cov=(["a", "b", "c"], cov),
+        )
+        assert t["a"] == pytest.approx(0.10)  # capped
+        # clipped excess went to b/c instead of leaking to cash
+        assert sum(t.values()) == pytest.approx(0.30)
+
+    def test_minvar_partial_coverage_degrades_per_name(self) -> None:
+        c = Constructor(top_n=3, scheme="minvar", position_cap=1.0)
+        cov = np.diag([0.1**2, 0.2**2])  # only a and b covered
+        t = c.build(
+            [("a", 1e9), ("b", 1e9), ("newlisting", 1e9)],
+            {},
+            None,
+            ConstraintReport(),
+            cov=(["a", "b"], cov),
+        )
+        # covered subset gets min-var (a > b), newcomer gets the 1/N share
+        assert t["a"] > t["b"]
+        assert t["newlisting"] == pytest.approx(1 / 3)

@@ -91,7 +91,16 @@ def main() -> int:
     )
     gaps = gap_factor_events(panel, gap_dates)
     events = combine_events(parsed, gaps)
-    adjusted = apply_adjustment(panel, events)
+    ca_rejections: list[dict[str, object]] = []
+    adjusted = apply_adjustment(panel, events, rejections=ca_rejections)
+    if ca_rejections:
+        import json as _json
+        from datetime import UTC as _UTC
+        from datetime import datetime as _dt
+
+        rej_path = settings.reports_dir / (f"qa_ca_rejections_{_dt.now(_UTC):%Y%m%dT%H%M%SZ}.json")
+        rej_path.write_text(_json.dumps(ca_rejections, indent=2), encoding="utf-8")
+        print(f"CA sanity gate: {len(ca_rejections)} declared factors rejected -> {rej_path}")
 
     adjusted.write_parquet(settings.curated_dir / "panel.parquet")
     events.write_parquet(settings.curated_dir / "ca_events.parquet")

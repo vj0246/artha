@@ -28,6 +28,7 @@ import polars as pl
 from artha.config import load_settings
 from artha.marketspec.nse import NSECostModel
 from artha.models.ledger import Trial, TrialLedger
+from artha.singlename.evalutil import long_flat_stats
 from artha.singlename.models import FAMILY, SEQ_LEN, predict
 
 TICKER = "ICICIBANK"
@@ -39,8 +40,11 @@ CAPITAL = 500_000.0
 
 def build_xy(rets: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """x[t] = standardized lags 0..SEQ_LEN-1 ending at t; y[t] = raw
-    return t -> t+1."""
-    x = np.column_stack([np.roll(rets, k) for k in range(SEQ_LEN)])
+    return t -> t+1. Columns are CHRONOLOGICAL (oldest lag first, newest
+    last) so sequence models read time forward and their final-timestep
+    readout sits on the most recent return (review finding 2026-07-20:
+    the previous newest-first order fed RNNs time-reversed input)."""
+    x = np.column_stack([np.roll(rets, k) for k in range(SEQ_LEN - 1, -1, -1)])
     x[:SEQ_LEN, :] = np.nan
     y = np.roll(rets, -1)
     y[-1] = np.nan
@@ -67,33 +71,6 @@ def walk_forward(x: np.ndarray, y: np.ndarray, fit: Any, name: str, *, rolling: 
     return preds
 
 
-def evaluate(preds: np.ndarray, y: np.ndarray, cost_per_switch: float) -> dict[str, float]:
-    ok = ~np.isnan(preds) & ~np.isnan(y)
-    p, yy = preds[ok], y[ok]
-    pos = (p > 0).astype(float)
-    switches = np.abs(np.diff(pos, prepend=0.0))
-    strat = pos * yy - switches * cost_per_switch
-    mean, std = strat.mean(), strat.std(ddof=1)
-    eq = np.cumprod(1 + strat)
-    peak = np.maximum.accumulate(eq)
-    maxdd = float((eq / peak - 1).min())
-    cagr = float(eq[-1] ** (252 / len(strat)) - 1)
-    downside = strat[strat < 0]
-    return {
-        "n_days": len(p),
-        "oos_ic": float(np.corrcoef(p, yy)[0, 1]) if len(p) > 2 else 0.0,
-        "sign_accuracy": float((np.sign(p) == np.sign(yy)).mean()),
-        "net_sharpe": float(mean / std * np.sqrt(252)) if std > 0 else 0.0,
-        "net_sortino": float(mean / downside.std(ddof=1) * np.sqrt(252))
-        if len(downside) > 2
-        else 0.0,
-        "net_cagr": cagr,
-        "max_drawdown": maxdd,
-        "calmar": cagr / abs(maxdd) if maxdd else 0.0,
-        "time_in_market": float(pos.mean()),
-    }
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--windows", nargs="*", default=["expanding"])
@@ -105,7 +82,7 @@ def main() -> int:
     rets = np.diff(np.log(icic["adj_close"].to_numpy()))
     m = NSECostModel(dp_order_value=CAPITAL)
     adv = float(icic["traded_value"].tail(252).median())
-    cost_per_switch = m.sell_cost(CAPITAL, adv) + m.buy_cost(CAPITAL, adv)
+    buy_rate, sell_rate = m.buy_cost(CAPITAL, adv), m.sell_cost(CAPITAL, adv)
     x, y = build_xy(rets)
 
     ledger = TrialLedger(settings.reports_dir / "ledger.jsonl")
@@ -113,17 +90,20 @@ def main() -> int:
     for window in args.windows:
         rolling = window == "rolling"
         wres: dict[str, Any] = {}
-        # floor: always long, pays entry once
-        always = np.where(np.isnan(y), np.nan, 1e-9)
-        wres["always_long"] = evaluate(always, y, cost_per_switch)
+        # floor: always long (constant positive prediction; evalutil
+        # reports IC 0.0 for constants instead of a NaN correlation)
+        always = np.where(np.isnan(y), np.nan, 1.0)
+        wres["always_long"] = long_flat_stats(always, y, buy_rate=buy_rate, sell_rate=sell_rate)
         preds_bank: dict[str, np.ndarray] = {}
         for name, fit in FAMILY.items():
             preds = walk_forward(x, y, fit, name, rolling=rolling)
             preds_bank[name] = preds
-            wres[name] = evaluate(preds, y, cost_per_switch)
+            wres[name] = long_flat_stats(preds, y, buy_rate=buy_rate, sell_rate=sell_rate)
             print(f"[{window}] {name}: {json.dumps(wres[name])}")
         stack = np.vstack([preds_bank[n] for n in FAMILY])
-        wres["ensemble_mean"] = evaluate(np.nanmean(stack, axis=0), y, cost_per_switch)
+        wres["ensemble_mean"] = long_flat_stats(
+            np.nanmean(stack, axis=0), y, buy_rate=buy_rate, sell_rate=sell_rate
+        )
         print(f"[{window}] ensemble_mean: {json.dumps(wres['ensemble_mean'])}")
         for name, stats in wres.items():
             ledger.append(

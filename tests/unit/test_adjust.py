@@ -186,7 +186,7 @@ class TestApplyAdjustment:
             [
                 (date(2024, 1, 1), "R", "EQ", 100.0, 100.0, 100),
                 (date(2024, 1, 2), "R", "EQ", 102.0, 100.0, 100),
-                (date(2024, 1, 3), "R", "EQ", 52.0, 52.0, 200),  # 1:1 bonus ex-date
+                (date(2024, 1, 3), "R", "EQ", 52.0, 102.0, 200),  # 1:1 bonus ex-date
                 (date(2024, 1, 4), "R", "EQ", 53.0, 52.0, 200),
             ]
         )
@@ -201,8 +201,8 @@ class TestApplyAdjustment:
         bhav = mk_bhav(
             [
                 (date(2024, 1, 1), "M", "EQ", 400.0, 400.0, 10),
-                (date(2024, 1, 2), "M", "EQ", 200.0, 200.0, 10),  # 1:1 -> 0.5
-                (date(2024, 1, 3), "M", "EQ", 100.0, 100.0, 10),  # 1:1 again -> 0.5
+                (date(2024, 1, 2), "M", "EQ", 200.0, 400.0, 10),  # 1:1 -> 0.5
+                (date(2024, 1, 3), "M", "EQ", 100.0, 200.0, 10),  # 1:1 again -> 0.5
             ]
         )
         panel = equity_panel(bhav, NO_CHANGES)
@@ -218,7 +218,7 @@ class TestApplyAdjustment:
         bhav = mk_bhav(
             [
                 (date(2024, 1, 5), "S", "EQ", 100.0, 100.0, 10),  # Friday
-                (date(2024, 1, 8), "S", "EQ", 50.0, 50.0, 20),  # Monday, post-CA units
+                (date(2024, 1, 8), "S", "EQ", 50.0, 100.0, 20),  # Monday, post-CA units
             ]
         )
         panel = equity_panel(bhav, NO_CHANGES)
@@ -281,3 +281,34 @@ class TestDeclaredFeedSanityGate:
         events = adjustment_events(mk_declared([("G", date(2025, 8, 25), 0.2)]), NO_CHANGES)
         adjusted = apply_adjustment(panel, events).sort("trade_date")
         assert adjusted["cum_adj_factor"].to_list() == [0.2, 1.0, 1.0]
+
+
+class TestSanityGateTightened:
+    def test_phantom_two_for_one_now_rejected(self) -> None:
+        # ratio/factor = 1.0/0.5 = 2.0: passed the old 2.5x bound, must fail 1.6x
+        bhav = mk_bhav(
+            [
+                (date(2025, 8, 22), "P", "EQ", 1000.0, 990.0, 10),
+                (date(2025, 8, 25), "P", "EQ", 1001.0, 1000.0, 10),  # price never halved
+            ]
+        )
+        panel = equity_panel(bhav, NO_CHANGES)
+        events = adjustment_events(mk_declared([("P", date(2025, 8, 25), 0.5)]), NO_CHANGES)
+        rejections: list[dict[str, object]] = []
+        adjusted = apply_adjustment(panel, events, rejections=rejections)
+        assert adjusted["cum_adj_factor"].to_list() == [1.0, 1.0]
+        assert len(rejections) == 1
+        assert rejections[0]["canon_symbol"] == "P"
+
+    def test_genuine_split_with_big_exday_move_still_passes(self) -> None:
+        # real 1:5 plus a +30% ex-day rally: ratio/factor = 0.26/0.2 = 1.3 < 1.6
+        bhav = mk_bhav(
+            [
+                (date(2025, 8, 22), "G2", "EQ", 1000.0, 990.0, 10),
+                (date(2025, 8, 25), "G2", "EQ", 260.0, 1000.0, 50),
+            ]
+        )
+        panel = equity_panel(bhav, NO_CHANGES)
+        events = adjustment_events(mk_declared([("G2", date(2025, 8, 25), 0.2)]), NO_CHANGES)
+        adjusted = apply_adjustment(panel, events).sort("trade_date")
+        assert adjusted["cum_adj_factor"].to_list() == [0.2, 1.0]

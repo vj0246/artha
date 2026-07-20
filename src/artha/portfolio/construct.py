@@ -36,6 +36,7 @@ SECTOR_CAP: Final = 0.25
 ADV_PARTICIPATION: Final = 0.02
 NO_TRADE_BAND: Final = 0.25
 TARGET_VOL: Final = 0.135  # midpoint of the plan's 12-15% band
+FULL_EXIT_WEIGHT: Final = 0.005  # partial-adjustment exits liquidate below this
 _TOL: Final = 1e-9
 
 
@@ -87,7 +88,7 @@ class Constructor:
             return dict(prior_weights)
         names = [sym for sym, _ in picks]
         weights = self._base_weights(names, vols, cov)
-        weights = {sym: min(w, self.position_cap) for sym, w in weights.items()}
+        weights = self._apply_position_cap(weights)
         weights = self._apply_sector_cap(weights)
 
         # vol targeting scales gross before banding/participation
@@ -102,7 +103,10 @@ class Constructor:
             target = weights.get(sym, 0.0)
             prior = prior_weights.get(sym, 0.0)
             if self.trade_speed is not None:
-                banded[sym] = prior + self.trade_speed * (target - prior)
+                if target <= _TOL and prior < FULL_EXIT_WEIGHT:
+                    banded[sym] = 0.0  # full exit: no geometric zombie tail
+                else:
+                    banded[sym] = prior + self.trade_speed * (target - prior)
             elif target > 0 and abs(target - prior) < self.no_trade_band * target:
                 banded[sym] = prior  # hold
             else:
@@ -144,9 +148,43 @@ class Constructor:
     ) -> dict[str, float]:
         if self.scheme == "ivol" and vols:
             return inverse_vol_weights(names, vols)
-        if self.scheme == "minvar" and cov is not None and cov[0] == names:
-            return min_var_weights(names, cov[1])
+        if self.scheme == "minvar" and cov is not None:
+            cov_names, matrix = cov
+            if cov_names == names:
+                return min_var_weights(names, matrix)
+            # partial risk coverage (short-history names excluded from the
+            # covariance): min-var over the covered subset, equal share for
+            # the rest — the model degrades name-by-name, never all-or-nothing
+            covered = [n for n in cov_names if n in names]
+            if covered:
+                rest = [n for n in names if n not in covered]
+                sub = min_var_weights(covered, matrix)
+                frac = len(covered) / len(names)
+                out = {n: w * frac for n, w in sub.items()}
+                out.update(dict.fromkeys(rest, (1 - frac) / len(rest)) if rest else {})
+                return out
         return dict.fromkeys(names, 1.0 / len(names))
+
+    def _apply_position_cap(self, weights: dict[str, float]) -> dict[str, float]:
+        """Clip to the position cap and REDISTRIBUTE the clipped excess to
+        uncapped names (iteratively), so concentrated risk-model books do
+        not silently leak gross into cash."""
+        for _ in range(10):
+            over = {s: w for s, w in weights.items() if w > self.position_cap + _TOL}
+            if not over:
+                return weights
+            excess = sum(w - self.position_cap for w in over.values())
+            weights = {s: min(w, self.position_cap) for s, w in weights.items()}
+            under = {s: w for s, w in weights.items() if w < self.position_cap - _TOL}
+            room = sum(self.position_cap - w for w in under.values())
+            if room <= _TOL:
+                return weights  # everyone capped: excess genuinely becomes cash
+            scale = min(1.0, excess / room)
+            weights = {
+                s: (w + (self.position_cap - w) * scale if s in under else w)
+                for s, w in weights.items()
+            }
+        return weights
 
     def _apply_sector_cap(self, weights: dict[str, float]) -> dict[str, float]:
         for _ in range(10):
