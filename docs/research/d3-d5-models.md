@@ -45,3 +45,13 @@ the ledger.
    whether news/announcement sentiment adds anything to an always-long
    or cross-sectional stance — is now the last open Track D item,
    pending the GDELT archive completing.
+
+## Correction (2026-07-20 review): per-side costs + chronological sequences
+
+Two fixes rerun: costs charged per side (old run double-charged), and
+sequence models now read time forward with the readout on the newest
+lag (old run fed them reversed). Corrected [expanding]: always-long
++0.44; GRU +0.10, LSTM +0.16, transformer -0.14, ensemble -0.23,
+ridge -0.52, LGBM -0.48. The sequence arms improve as expected from
+the fix but remain under half the floor: **the null stands on corrected
+numbers** — no model beats holding the stock.

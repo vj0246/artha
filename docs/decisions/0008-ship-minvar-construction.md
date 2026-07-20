@@ -13,10 +13,15 @@ by run_paper_day, run_weekly_review, and run_live_readiness.
 
 ## Evidence and authorization
 
-- Track C study, clean-data rerun after the CA sanity gate: minvar+tau0.5
-  net Sharpe 1.119 vs 0.963 equal+bands, maxDD -21.2% vs -27.1%,
-  turnover 3.8x vs 5.2x, zero constraint violations
-  (docs/research/track-c-study.md; family-level Hansen SPA p = 0.0445).
+- Track C study: minvar+tau0.5 beat equal+bands at the time of decision
+  (then-measured 1.119 vs 0.963). The 2026-07-20 post-hardening rerun
+  (cap redistribution, epsilon exit, per-name coverage, tighter CA gate)
+  revised this to 1.018 vs 0.963, maxDD -28.3% vs -27.1%, turnover 4.2x
+  vs 5.2x — the earlier drawdown advantage was largely unintended cash
+  from the cap-clip bug. minvar and ivol (1.024) are now statistically
+  tied; the config stays because switching between tied configs would
+  restart the B1 clock for noise (docs/research/track-c-study.md,
+  post-hardening section; Hansen SPA p = 0.0415).
 - VJ approved the switch explicitly on 2026-07-19 ("switch to minvar").
 
 ## Consequences

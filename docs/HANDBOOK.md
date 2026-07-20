@@ -46,7 +46,7 @@ Foundational choices, each with its "why":
   changes happen in commits; decision reversals need an ADR.
 
 Headline results (all net of full Indian costs, details in
-docs/research/): production construction Sharpe 1.12 / maxDD -21%;
+docs/research/): production construction Sharpe ~1.02 (risk-model family vs 0.96 equal; post-hardening rerun 2026-07-20);
 family beats the index with Hansen SPA p = 0.0445; cross-sectional ML
 null (PBO 0.86); inverted Indian PEAD (t = -6.9); decomposition
 preprocessing exposed as 100% look-ahead (leaky IC 0.41 -> causal

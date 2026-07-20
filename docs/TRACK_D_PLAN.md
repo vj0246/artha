@@ -2,7 +2,7 @@
 
 Adopted at VJ's direction (ADR 0007) after review of a
 literature-summary he supplied. Framing agreed up front: the
-cross-sectional book (minvar+tau0.5, Sharpe 1.12) remains the money
+cross-sectional book (minvar+tau0.5) remains the money
 engine and is untouched; Track D is a rigorous single-name laboratory
 whose primary scientific target is whether the PREPROCESSING claims in
 the retail-forecasting literature (denoising, decomposition) survive

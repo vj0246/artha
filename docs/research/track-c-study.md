@@ -109,3 +109,33 @@ by backtest metrics alone — it surfaced because the risk model's
 fail-safe (full shrinkage) looked wrong at deployment. Defense in
 depth: the declared feed is now verified against prices, exactly as
 ADR 0005 verified prices against the declared feed.
+
+## Post-hardening rerun (2026-07-20, after the 10-finding code review)
+
+The review fixes changed construction mechanics (position-cap excess
+now REDISTRIBUTES instead of leaking to cash; epsilon full-exit for
+dropped names; per-name risk coverage) and the CA gate tightened to
+(0.55, 1.6), rejecting 14 declared factors (qa_ca_rejections artifact).
+Honest rerun on the rebuilt panel:
+
+| config | Sharpe | CAGR | maxDD | turnover |
+|---|---|---|---|---|
+| equal + bands | 0.963 | 12.8% | -27.1% | 5.2x |
+| ivol + bands | 1.020 | 13.6% | -26.9% | 5.5x |
+| minvar + bands | 1.003 | 13.3% | -27.1% | 6.1x |
+| ivol + tau 0.50 | 1.024 | 13.9% | -28.8% | 3.9x |
+| **minvar + tau 0.50 (live)** | **1.018** | 13.7% | -28.3% | 4.2x |
+
+**What changed and why it is MORE honest:** min-var's earlier headline
+(1.119, maxDD -21%) was partly an accident — the position-cap clip was
+silently parking gross in cash whenever min-var concentrated, which
+acted as unintended de-risking. With the excess properly redistributed,
+min-var's Sharpe edge over 1/N shrinks to ~+0.05 and its drawdown
+advantage disappears. The risk-model family (ivol/minvar, ~1.02) still
+beats equal weight (0.96) — the DeMiguel rejection stands, smaller —
+and minvar vs ivol is now statistically a tie. SPA on the refreshed
+family: RC p = 0.012, Hansen p = 0.0415 (unchanged conclusion).
+
+**Production decision:** minvar+tau0.5 stays live (switching again to
+the statistically-tied ivol would restart the B1 clock for noise); ADR
+0008 updated with these numbers. The 1.119 figure is retired.

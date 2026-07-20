@@ -47,3 +47,11 @@ robustness arm): any model that needs the leaky transform to work is
 disqualified by construction. Expectation for D3 recorded now: the
 floor (always-long) is the bar; sequence models must beat it OOS net
 of costs to claim memory exists.
+
+## Correction (2026-07-20 review): per-side costs
+
+The original run double-charged switches (full round trip per toggle).
+Corrected numbers move every variant up but change nothing structural:
+raw -0.06 (was -0.52), EMD leaky +3.62, EMD causal +0.22, look-ahead
+gap now IC +0.45 / Sharpe +3.40. Conclusion unchanged: the decomposition
+edge is the leak.

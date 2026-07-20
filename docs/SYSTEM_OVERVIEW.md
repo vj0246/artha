@@ -13,7 +13,7 @@ Prove, with institutional-grade honesty, that a retail-sized systematic
 equity strategy on NSE can be researched, validated, and OPERATED end
 to end at Rs 0 data cost — then run it live. The artifact is threefold:
 (1) a validated strategy (constructed momentum, LW min-var + GP tau
-0.5, net Sharpe 1.12, live paper since 2026-07-19), (2) the research
+0.5, net Sharpe ~1.02, live paper since 2026-07-19), (2) the research
 record including every null, and (3) the production machinery that
 trades it unattended. The honest-nulls record IS the credential: most
 of quant is knowing what does not work.
@@ -45,7 +45,7 @@ of quant is knowing what does not work.
   a ledger row before its result is read.
 - **Key findings**: ML does not beat simple factors cross-sectionally
   net of costs (PBO 0.86); Indian PEAD is INVERTED (t = -6.9);
-  construction alone lifts Sharpe 0.96 -> 1.12 and halves drawdown
+  construction alone lifts Sharpe 0.96 -> ~1.02 (post-hardening rerun)
   (Ledoit-Wolf min-var + Garleanu-Pedersen partial adjustment, Track
   C); the family beats the index with SPA p = 0.0445; regime gates add
   nothing beyond vol targeting (null); decomposition preprocessing

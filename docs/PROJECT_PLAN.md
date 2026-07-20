@@ -50,6 +50,13 @@ design, cost model, QA discipline, verify-list).
   docs/SYSTEM_OVERVIEW.md added as the single full-system document; docs/HANDBOOK.md added
   as the complete new-maintainer onboarding (every file, every choice, from-scratch bootstrap,
   gotchas) — the project is now carry-forwardable without any verbal handover.
+- 2026-07-20: 10-finding code review fixed (commit fbceca4) and all affected studies rerun
+  on a rebuilt panel (CA gate tightened to 0.55-1.6x; 14 declared factors rejected, persisted
+  to qa_ca_rejections). REVISED HEADLINE: construction v2 winner minvar+tau0.5 = Sharpe 1.018
+  vs 0.963 equal (earlier 1.119 partly an artifact of the position-cap cash leak, now fixed
+  by redistribution); minvar/ivol statistically tied; SPA p = 0.0415; D2 gap +3.40 Sharpe
+  with per-side costs; D3 null stands with chronological sequences. Production config
+  unchanged (tie does not justify a clock restart); ADR 0008 updated.
 - 2026-07-20: D3/D5 EXECUTED — comprehensive null (docs/research/d3-d5-models.md): no model
   in the family (ridge/LGBM/GRU/LSTM/transformer/ensemble) beats always-long on ICICIBANK
   net of costs, under expanding OR rolling windows; OOS ICs ~0. Single-name lab conclusion:
