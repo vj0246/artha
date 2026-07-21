@@ -105,6 +105,13 @@ flowchart LR
   re-deflated against the live ledger; weekly live-vs-research replay
   (with proper risk-model warmup); monthly research-agent screens and
   quarterly re-validation, all ledgered.
+- **Alarms that survive**: every alert is appended to `alerts.jsonl`
+  with a severity before any push channel, because a push channel you
+  forgot to configure is not an alarm. A nightly heartbeat monitors the
+  failure mode nothing else catches — **silence**: a cycle that never
+  ran, a refused scheduled task, a stalled B1 clock, an active freeze.
+  Health is pinned at the top of the dashboard. No auto-remediation by
+  design: alarms inform, humans decide.
 - **Quantified go/no-go**: PSR, minimum track record length, Kupiec VaR
   exceptions, tracking error, capital sizing.
 
@@ -121,7 +128,12 @@ uv run python scripts/run_p5.py             # construction gate
 uv run python scripts/run_construction_v2.py && uv run python scripts/run_spa.py
 uv run python scripts/run_d2_preprocess.py  # the look-ahead exposure
 uv run python scripts/run_dashboard.py      # http://127.0.0.1:8787
+uv run python scripts/run_heartbeat.py      # ops health check
 ```
+
+The dashboard is **localhost-only by design** — it shows live positions,
+equity and operational state with no authentication, so it is not
+deployed anywhere (ADR 0012).
 
 Full bootstrap (every backfill, study, and scheduled task):
 [docs/HANDBOOK.md](docs/HANDBOOK.md). Data lives outside the repo

@@ -148,3 +148,50 @@ class TestFlattenBypassesPretrade:
         kill.flatten(b, DAY)
         assert b.positions() == {}
         assert kill.frozen
+
+
+class TestAlertDurability:
+    def test_alert_persists_to_jsonl_without_telegram(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import json as _json
+
+        from artha.live.safety import alert
+
+        monkeypatch.setenv("ARTHA_DATA_DIR", str(tmp_path))
+        monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+        monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
+        alert("book is on fire", severity="critical")
+        alert("mild concern")
+
+        path = tmp_path / "reports" / "paper" / "alerts.jsonl"
+        rows = [_json.loads(x) for x in path.read_text(encoding="utf-8").splitlines() if x]
+        assert [r["severity"] for r in rows] == ["critical", "warning"]
+        assert rows[0]["message"] == "book is on fire"
+        assert rows[0]["at"].startswith("20")
+
+    def test_alert_never_raises_when_data_dir_is_unwritable(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from artha.live.safety import alert
+
+        # a path that cannot be created: alerting must degrade, never crash
+        monkeypatch.setenv("ARTHA_DATA_DIR", "\x00invalid")
+        alert("still must not raise")
+
+    def test_freeze_records_a_critical_alert(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import json as _json
+
+        monkeypatch.setenv("ARTHA_DATA_DIR", str(tmp_path))
+        KillSwitch(tmp_path / "FREEZE").freeze("reconcile mismatch")
+        rows = [
+            _json.loads(x)
+            for x in (tmp_path / "reports" / "paper" / "alerts.jsonl")
+            .read_text(encoding="utf-8")
+            .splitlines()
+            if x
+        ]
+        assert rows[-1]["severity"] == "critical"
+        assert "KILL SWITCH" in rows[-1]["message"]

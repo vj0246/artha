@@ -27,6 +27,18 @@ design, cost model, QA discipline, verify-list).
 
 ### Post-v2 execution changelog (kept current so VJ can follow every change)
 
+- 2026-07-20 (Track G: ops hygiene, ADR 0012): an ops audit found the alerting had no
+  delivery channel (Telegram unset, so freezes/breaks/drift landed only in a log tail) and
+  that NOTHING alarmed on silence — a daily cycle that never runs produced no signal, while
+  the scheduled task had in fact returned a refusal code that same day. Fixed: alert() is now
+  durable (appends to alerts.jsonl with severity before any push channel; unit-tested to
+  degrade rather than crash); scripts/run_heartbeat.py runs nightly at 21:00 (artha-heartbeat)
+  checking book freshness vs the NSE calendar, missed B1 sessions, kill-switch state,
+  cycle.log age, scheduled-task presence and accumulated criticals -> health.json + non-zero
+  exit + critical alert; the dashboard pins a health banner and an alert feed; the weekly
+  review runs the heartbeat too. Known limit (documented, not hidden): a local watchdog cannot
+  detect "machine was off" — external dead-man's switch is VJ's call. Zero ledger cost.
+
 - 2026-07-20 (C7 verdict + SPA correction, ADR 0011): the blend candidate ran its
   pre-registered battery and was HELD, not shipped — PBO 0.500 (gate < 0.5) and family
   SPA p = 0.655 (gate < 0.05) failed; sub-period stability and DSR passed. Production

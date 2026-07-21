@@ -45,6 +45,19 @@ def main() -> int:
     recon_breaks = sum(1 for r in rows if not r.get("reconcile_ok", True))
     rejections = sum(int(r.get("orders_rejected", 0)) for r in rows)
 
+    # ops hygiene (Track G): a stalled clock must not survive a week unnoticed
+    import subprocess as _sp
+
+    hb = _sp.run(
+        [sys.executable, "scripts/run_heartbeat.py"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    if hb.returncode != 0:
+        alert("weekly review: heartbeat reports operational problems (see health.json)")
+
     if live.is_empty() or live.height < 2:
         print(
             f"log rows: {len(rows)} (live {live.height}); "

@@ -55,6 +55,27 @@ def test_jsonl_endpoints(client: TestClient) -> None:
     assert client.get("/api/paper_log").json()[0]["trade_date"] == "2026-07-17"
 
 
+def test_health_and_alerts_degrade_gracefully(client: TestClient, tmp_path: Path) -> None:
+    # heartbeat never run: health reports unknown rather than erroring
+    assert client.get("/api/health").json()["healthy"] is None
+    assert client.get("/api/alerts").json() == []
+
+    paper = tmp_path / "reports" / "paper"
+    (paper / "health.json").write_text(
+        json.dumps({"healthy": False, "problems": ["cycle not running"], "b1_progress": "3/30"}),
+        encoding="utf-8",
+    )
+    (paper / "alerts.jsonl").write_text(
+        json.dumps({"at": "2026-07-20T12:00:00+00:00", "severity": "critical", "message": "frozen"})
+        + "\n",
+        encoding="utf-8",
+    )
+    h = client.get("/api/health").json()
+    assert h["healthy"] is False
+    assert h["problems"] == ["cycle not running"]
+    assert client.get("/api/alerts").json()[0]["severity"] == "critical"
+
+
 def test_missing_report_is_404(client: TestClient) -> None:
     assert client.get("/api/event_alpha").status_code == 404
     assert client.get("/api/benchmark").status_code == 404

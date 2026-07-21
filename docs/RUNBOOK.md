@@ -16,8 +16,19 @@ user: the machine must be on (or asleep-with-wake) at 19:00; a missed
 day shows up as a gap in paper_log.jsonl and resets nothing by itself —
 the gate only counts consecutive logged sessions.
 
-Telegram alerts (optional): set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID as
-user environment variables; without them alerts print to the log.
+Full scheduled roster (all registered):
+
+| task | when | purpose |
+|---|---|---|
+| artha-daily | 19:00 daily | backfill -> rebuild -> trade -> reconcile |
+| artha-heartbeat | 21:00 daily | did any of that actually happen? (Track G) |
+| artha-weekly | Sat 10:00 | live-vs-research divergence + heartbeat |
+| artha-monthly | 1st, 10:00 | research agent + SPA refresh |
+| artha-quarterly | every 3rd month | construction re-validation |
+
+Telegram push is optional (see "Alarms" below). Alerts are durable
+without it: every one is appended to `reports/paper/alerts.jsonl` and
+shown on the dashboard.
 
 The 6-week clean-paper clock starts at the first non-dry-run day in
 `~/quant-data/reports/paper/paper_log.jsonl`.
@@ -77,12 +88,57 @@ items true = GO candidate.
 modeled per fill from orders_log.jsonl; meaningful once quote_source
 is kite_ltp.
 
+## Alarms: where they go and what to do (Track G)
+
+Every alert this system raises is APPENDED to
+`~/quant-data/reports/paper/alerts.jsonl` with a UTC timestamp and a
+severity (`warning` | `critical`), regardless of any push channel.
+The dashboard shows the recent feed and a health banner at the top.
+
+**Optional Telegram push** (recommended, 5 minutes): create a bot via
+@BotFather, get your chat id, then set the two user environment
+variables `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` (names only —
+never commit values). With them set, every alert also pushes to your
+phone. Without them, alerts still land in the file and the dashboard.
+
+**What each severity means:**
+- `critical` — trading is halted or the operation is broken: kill-switch
+  freeze, reconciliation mismatch, heartbeat failure. Act same day.
+- `warning` — degradation worth watching: drawdown de-risk engaged,
+  signal IC decay, feature drift (PSI), pre-trade rejections.
+
+**Kill switch is active?** `reports/paper/FREEZE` exists and its
+contents record the reason. Investigate the reason FIRST, then delete
+the file to resume. Never auto-clear it.
+
+## Heartbeat: the alarm for silence (G2, nightly 21:00)
+
+`uv run --no-sync python scripts/run_heartbeat.py`
+
+Registered as `artha-heartbeat`, two hours after the daily cycle. It
+catches the failure mode nothing else does: the cycle that never ran
+(task refused/disabled, machine off at 19:00, reboot mid-cycle, paper
+day silently no-opping). It checks book freshness against the NSE
+calendar, missed sessions inside the B1 window, kill-switch state,
+cycle.log age, all scheduled tasks, and accumulated criticals — then
+writes `health.json`, exits non-zero on any problem, and raises a
+critical alert.
+
+**Limitation you must know**: if the PC is OFF at 19:00 it is probably
+off at 21:00, so a local watchdog cannot catch that case. The complete
+fix is an external dead-man's switch (the cycle pings a free service on
+success; that service emails you when the ping stops). It is not
+enabled because it sends operational metadata to a third party and
+needs an account — your call. Until then, the practical guard is: check
+the dashboard banner when you sit down, and keep the machine on at
+19:00 IST.
+
 ## Signal health (E2, runs inside the daily cycle)
 
 `uv run --no-sync python scripts/run_signal_health.py` — momentum IC
 decay watch (63d/252d), PSI feature drift (alert > 0.25), DSR refresh
-vs the live ledger count. Appends signal_health.jsonl; alerts via
-Telegram.
+vs the live ledger count. Appends signal_health.jsonl; alerts through
+the durable channel (alerts.jsonl + dashboard + Telegram if set).
 
 ## Scheduled research refresh (E3) — REGISTERED 2026-07-20
 
@@ -94,8 +150,10 @@ re-validation. Wrappers: scripts/artha_monthly.cmd / artha_quarterly.cmd.
 
 `uv run --no-sync python scripts/run_dashboard.py [port]` — read-only
 FastAPI app on localhost (default 8787): tearsheet KPIs, benchmark
-chart, model study, paper log, trial ledger. No auth, no writes; do not
-expose beyond localhost.
+chart, model study, paper log, trial ledger, health banner and alert
+feed. No auth, no writes; **do not expose beyond localhost** — it shows
+live positions, equity and operational state with no access control
+(ADR 0012).
 
 ## Research agent (B6)
 

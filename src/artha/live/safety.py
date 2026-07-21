@@ -36,10 +36,35 @@ def drawdown_action(peak_equity: float, equity: float) -> tuple[float, bool]:
     return (0.5 if dd <= -DERISK_DD else 1.0), dd <= -FLATTEN_DD
 
 
-def alert(message: str) -> None:
+def alert(message: str, *, severity: str = "warning") -> None:
+    """Raise an operational alert on every channel available.
+
+    Durability first (ops review 2026-07-20): alerts are APPENDED to
+    reports/paper/alerts.jsonl before anything else, because Telegram is
+    optional and unconfigured by default — without the file, a freeze or
+    a reconcile break would exist only in a log tail nobody reads. The
+    dashboard surfaces unacknowledged alerts from that file. Alerting
+    must never raise: every channel is individually suppressed.
+    """
+    with contextlib.suppress(Exception):
+        from artha.config import load_settings
+
+        path = load_settings().reports_dir / "paper" / "alerts.jsonl"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as f:
+            f.write(
+                json.dumps(
+                    {
+                        "at": datetime.now(UTC).isoformat(),
+                        "severity": severity,
+                        "message": message,
+                    }
+                )
+                + "\n"
+            )
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
     chat = os.environ.get("TELEGRAM_CHAT_ID", "")
-    print(f"ALERT: {message}", file=sys.stderr)
+    print(f"ALERT [{severity}]: {message}", file=sys.stderr)
     if token and chat:
         with contextlib.suppress(httpx.HTTPError):  # alerts must not kill the runbook
             httpx.post(
@@ -99,7 +124,7 @@ class KillSwitch:
             json.dumps({"reason": reason, "at": datetime.now(UTC).isoformat()}),
             encoding="utf-8",
         )
-        alert(f"KILL SWITCH: trading frozen - {reason}")
+        alert(f"KILL SWITCH: trading frozen - {reason}", severity="critical")
 
     def unfreeze(self) -> None:
         self.freeze_path.unlink(missing_ok=True)

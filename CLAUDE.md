@@ -18,12 +18,17 @@
   the pre-registered gates. SPA claim corrected project-wide: the shipped
   book wins on RISK-ADJUSTED return (Sharpe 1.02 vs index 0.94), not raw
   excess return (13.7% vs 14.97% CAGR at lower vol).
-- Scheduled tasks: artha-daily 19:00, artha-weekly SAT 10:00,
-  artha-monthly 1st 10:00, artha-quarterly. Laptop must be ON.
+- Scheduled tasks: artha-daily 19:00, artha-heartbeat 21:00,
+  artha-weekly SAT 10:00, artha-monthly 1st 10:00, artha-quarterly.
+  Laptop must be ON at 19:00 (and 21:00 for the heartbeat to fire).
+- Track G (ops hygiene, ADR 0012): alerts are DURABLE (alerts.jsonl +
+  severity, Telegram optional); run_heartbeat.py alarms on SILENCE (a
+  cycle that never ran) -> health.json; dashboard health banner + alert
+  feed. Never raise an alarm with a bare print — use safety.alert().
 - WAITS ON VJ ONLY: Kite credentials (B2/C5/E4), funding >= Rs 2L (B3),
   GROQ_API_KEY (optional), laptop uptime at 19:00.
 - Details: PROJECT_PLAN.md post-v2 changelog (authoritative history),
-  TRACK_B/C/D/E_PLAN.md statuses, docs/research/ notes, ADRs 0001-0011,
+  TRACK_B/C/D/E/G_PLAN.md statuses, docs/research/ notes, ADRs 0001-0012,
   HANDBOOK.md (full onboarding), SYSTEM_OVERVIEW.md.
 - GPU note: CUDA torch via `uv pip install torch --index-url .../cu126
   --reinstall`; `uv sync` reverts it; always `uv run --no-sync`.

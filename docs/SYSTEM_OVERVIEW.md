@@ -81,6 +81,24 @@ of quant is knowing what does not work.
   capital sizing (Rs 2L minimum viable, Rs 5L preferred — flat DP
   charges and integer shares kill Rs 1L).
 
+## Operational hygiene (Track G)
+
+- **Durable alerts**: every alarm appends to reports/paper/alerts.jsonl
+  (timestamp + severity) before any push channel, because Telegram is
+  optional and unset by default. Kill-switch freezes are `critical`.
+- **Heartbeat** (nightly 21:00, `run_heartbeat.py`): the alarm for
+  silence — catches a daily cycle that never ran (task refused, machine
+  off, reboot, silent no-op), missed B1 sessions, an active freeze, a
+  stale cycle.log, or a missing scheduled task. Writes health.json,
+  exits non-zero, raises one critical alert. Known limit: a local
+  watchdog cannot see "machine was off" — external dead-man's switch is
+  documented in RUNBOOK as VJ's call.
+- **Surfacing**: dashboard health banner pinned above every panel plus
+  an alert feed; the weekly review also runs the heartbeat so a stalled
+  clock cannot survive a week.
+- **No auto-remediation by design**: alarms inform, humans decide. Every
+  freeze is a decision point.
+
 ## Dashboard (src/artha/dashboard, http://127.0.0.1:8787)
 
 Read-only FastAPI over run artifacts + one dependency-free page:
@@ -102,7 +120,9 @@ pretends tick data exists where it does not.
 
 ## What waits on VJ (nothing else blocks)
 
-1. Laptop on at 19:00 IST daily (B1 clock: 30 clean sessions).
+1. Laptop on at 19:00 IST daily (B1 clock: 30 clean sessions). The
+   21:00 heartbeat will alert if a cycle is missed — but only if the
+   machine is on at 21:00.
 2. Zerodha credentials + static-IP/2FA setup (unlocks B2 reconcile
    week, live quotes, slippage measurement, C5 execution study).
 3. Funding >= Rs 2L after B1+B2 gates (B3 4-week live gate).

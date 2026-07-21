@@ -91,6 +91,11 @@
   details { margin-top: .5rem; font-size: .78rem; color: var(--ink-2); }
   summary { cursor: pointer; color: var(--muted); }
   .err { color: var(--crit); font-size: .8rem; }
+  .banner { border-radius: 12px; padding: .8rem 1rem; margin-bottom: 1rem; border: 1px solid; }
+  .banner.ok { border-color: var(--good); background: color-mix(in oklab, var(--good) 8%, var(--surface)); }
+  .banner.bad { border-color: var(--crit); background: color-mix(in oklab, var(--crit) 10%, var(--surface)); }
+  .banner b { display: block; margin-bottom: .2rem; }
+  .banner ul { margin: .3rem 0 0 1rem; font-size: .82rem; }
   .note { color: var(--muted); font-size: .76rem; margin-top: .4rem; }
 </style>
 </head>
@@ -114,6 +119,8 @@
   <button data-days="1825" aria-pressed="true">5Y</button>
   <button data-days="0">All</button>
 </div>
+
+<div id="health-banner"></div>
 
 <div class="tiles" id="tiles"></div>
 
@@ -168,6 +175,10 @@
 <h2>Paper sessions</h2>
 <div class="note">The daily automated trading log (simulated money, real prices, real rules). 30 clean consecutive sessions unlock the next gate; any reconcile BREAK freezes trading.</div>
 <div class="card"><table id="paper"></table></div>
+
+<h2>Operational alerts</h2>
+<div class="note">Durable record of every freeze, break, drift warning and heartbeat failure — written to alerts.jsonl regardless of whether Telegram is configured, so nothing is lost in a log tail.</div>
+<div class="card"><table id="alerts"></table></div>
 
 <h2>Trial ledger</h2>
 <div class="note">Every experiment ever run, including failures — the statistics above are only honest because losers are counted.</div>
@@ -331,6 +342,43 @@ function tile(label, value, sub = "", cls = "") {
   d.append(b, s);
   if (sub) { const p = document.createElement("div"); p.className = "sub " + cls; p.textContent = sub; d.appendChild(p); }
   return d;
+}
+
+function renderHealth() {
+  const h = state.data.health;
+  const el = $("health-banner");
+  el.replaceChildren();
+  if (!h) return;
+  const ok = h.healthy === true;
+  const div = document.createElement("div");
+  div.className = "banner " + (ok ? "ok" : "bad");
+  const head = document.createElement("b");
+  if (h.healthy === null) {
+    head.textContent = "Heartbeat has never run — operational health unknown";
+  } else if (ok) {
+    head.textContent = `Operations healthy · B1 clock ${h.b1_progress} · last live session ${h.last_live_session || "none yet"}`;
+  } else {
+    head.textContent = `OPERATIONAL PROBLEM (${h.problems.length}) — the daily cycle needs attention`;
+  }
+  div.appendChild(head);
+  if (h.problems && h.problems.length) {
+    const ul = document.createElement("ul");
+    for (const p of h.problems) {
+      const li = document.createElement("li");
+      li.textContent = p;
+      ul.appendChild(li);
+    }
+    div.appendChild(ul);
+  }
+  const note = document.createElement("div");
+  note.className = "note";
+  const bits = [];
+  if (h.run_at) bits.push("checked " + h.run_at.slice(0, 16).replace("T", " ") + "Z");
+  if (h.frozen) bits.push("KILL SWITCH ACTIVE");
+  if (h.telegram_configured === false) bits.push("Telegram not configured — alerts land in alerts.jsonl and here only");
+  note.textContent = bits.join(" · ");
+  div.appendChild(note);
+  el.appendChild(div);
 }
 
 function renderTiles() {
@@ -536,6 +584,12 @@ function renderTables() {
     ["reconcile", r => { const s = document.createElement("span"); s.className = r.reconcile_ok ? "ok" : "bad"; s.textContent = r.reconcile_ok ? "ok" : "BREAK"; return s; }],
     ["mode", r => r.dry_run ? "dry" : "live"],
   ]);
+  const al = state.data.alerts;
+  if (al) fillTable("alerts", [...al].slice(-12).reverse(), [
+    ["when", r => (r.at || "").slice(0, 16).replace("T", " ")],
+    ["severity", r => { const s = document.createElement("span"); s.className = r.severity === "critical" ? "bad" : ""; s.textContent = r.severity; return s; }],
+    ["message", r => r.message],
+  ]);
   if (ledger) fillTable("ledger", [...ledger].slice(-12).reverse(), [
     ["model", r => r.model],
     ["features", r => r.feature_set],
@@ -552,12 +606,13 @@ async function refresh() {
     ts: "/api/tearsheet", bench: "/api/benchmark", ms: "/api/model_study",
     log: "/api/paper_log", ledger: "/api/ledger", readiness: "/api/readiness", hedge: "/api/hedge",
     construction: "/api/construction", spa: "/api/spa", regime: "/api/regime",
+    health: "/api/health", alerts: "/api/alerts",
   };
   await Promise.all(Object.entries(jobs).map(async ([k, url]) => {
     try { state.data[k] = await j(url); } catch { if (!(k in state.data)) state.data[k] = null; }
   }));
-  renderTiles(); renderTri(); renderChecklist(); renderConstruction(); renderHonesty();
-  renderSizing(); renderHedge(); renderTables();
+  renderHealth(); renderTiles(); renderTri(); renderChecklist(); renderConstruction();
+  renderHonesty(); renderSizing(); renderHedge(); renderTables();
   $("asof").textContent = "as of " + new Date().toLocaleTimeString();
   $("live-label").textContent = "live · 60s refresh";
 }

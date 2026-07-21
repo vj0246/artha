@@ -166,7 +166,9 @@ adapter, key-gated (KITE_API_KEY/KITE_ACCESS_TOKEN), batch LTP;
 UNTESTED against a real account until credentials exist. `oms.py`:
 deterministic client order ids (sha256 of date:symbol:side:qty),
 sells-first planning, pre-trade checks (value/count/band caps).
-`safety.py`: Telegram alerts (env-gated, never crash the runbook),
+`safety.py`: `alert()` — DURABLE by default (appends every alert to
+reports/paper/alerts.jsonl with severity before trying Telegram, which
+is env-gated and optional; never crashes the runbook),
 reconcile-or-freeze, KillSwitch (freeze file; flatten deliberately
 BYPASSES pre-trade checks — an emergency exit must not be rejectable),
 drawdown_action (-10% halves gross, -15% freezes; enforced in the
@@ -216,8 +218,12 @@ divergence), `run_live_readiness.py` (B3 go/no-go),
 (daily token), `run_kill_drill.py` (freeze->flatten rehearsal),
 `run_slippage_report.py` (realized vs modeled), `collect_news.py`
 (D4 RSS + sentiment), `run_dashboard.py` (localhost:8787), `run_signal_health.py`
-(E2 daily monitor), `run_e1_ewma.py` (E1 study).
-`artha_monthly.cmd` / `artha_quarterly.cmd`: E3 scheduled wrappers.
+(E2 daily monitor), `run_e1_ewma.py` (E1 study), `run_heartbeat.py`
+(G2: the alarm for a cycle that never ran — writes health.json, exits
+non-zero on problems), `run_c7_validation.py` (the blend's
+pre-registered battery), `run_posttax.py` (STCG lens).
+`artha_monthly.cmd` / `artha_quarterly.cmd` / `artha_heartbeat.cmd`:
+scheduled wrappers.
 `artha_daily.cmd` / `artha_weekly.cmd`: the scheduled-task wrappers.
 
 ### tests/
@@ -320,6 +326,16 @@ agent proposer, news scoring; optional).
    the B1 gate counts sessions, and reruns must not inflate it.
 9. mypy scope is src+tests; scripts are validated by execution. New
    untyped dependency -> add to the pyproject mypy override list.
+10. An alert with no delivery channel is not an alert. Telegram is
+    optional and unset by default, which is exactly why alert() writes
+    to alerts.jsonl first and the dashboard pins a health banner. If
+    you add a new alarm, raise it through safety.alert() — never a bare
+    print — or it will be invisible.
+11. The most expensive failure here is SILENCE, not error: a daily
+    cycle that never runs stalls the B1 clock for weeks before anyone
+    notices. That is what run_heartbeat.py exists for; keep it
+    scheduled, and remember a local watchdog cannot see "machine was
+    off" (see RUNBOOK for the external dead-man's-switch option).
 
 ## 6. How to extend without breaking the discipline
 

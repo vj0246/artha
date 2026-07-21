@@ -80,6 +80,26 @@ def research_agent() -> dict[str, Any]:
     return _latest("research_agent_*.json")
 
 
+@app.get("/api/health")
+def health() -> dict[str, Any]:
+    """Operational health written by run_heartbeat.py (Track G)."""
+    settings = load_settings()
+    path = settings.reports_dir / "paper" / "health.json"
+    if not path.exists():
+        return {"healthy": None, "status": "heartbeat has never run"}
+    return json.loads(path.read_text(encoding="utf-8"))  # type: ignore[no-any-return]
+
+
+@app.get("/api/alerts")
+def alerts() -> list[dict[str, Any]]:
+    settings = load_settings()
+    path = settings.reports_dir / "paper" / "alerts.jsonl"
+    if not path.exists():
+        return []
+    rows = [json.loads(x) for x in path.read_text(encoding="utf-8").splitlines() if x.strip()]
+    return rows[-50:]
+
+
 @app.get("/api/construction")
 def construction() -> dict[str, Any]:
     return _latest("construction_v2_*.json")
