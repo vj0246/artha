@@ -85,6 +85,35 @@ SEED_SPECS: Final[list[FeatureProposal]] = [
         ),
         lookback_days=64,
     ),
+    FeatureProposal(
+        name="rev_gap_2d",
+        rationale=(
+            "Two-day pullback within an up-trending name: short-horizon reversal "
+            "conditioned on the medium-term path, the classic momentum-entry timing."
+        ),
+        expression="-(roll_mean(dret(), 2)) + 0.05 * roll_mean(dret(), 126)",
+        lookback_days=126,
+    ),
+    FeatureProposal(
+        name="turnover_shock_5d",
+        rationale=(
+            "Recent traded value against its own quarterly norm; volume surges "
+            "mark information arrival that price alone has not yet reflected."
+        ),
+        expression=(
+            "roll_mean(col('traded_value'), 5) / (roll_mean(col('traded_value'), 63) + 1.0)"
+        ),
+        lookback_days=64,
+    ),
+    FeatureProposal(
+        name="month_turn_drift",
+        rationale=(
+            "Turn-of-month seasonality interacted with trend: flows cluster at "
+            "month ends, a documented calendar effect worth one honest screen."
+        ),
+        expression="roll_mean(dret(), 21) - roll_mean(dret(), 5)",
+        lookback_days=21,
+    ),
 ]
 
 
@@ -128,17 +157,33 @@ def _propose_llm(n: int, api_key: str) -> list[FeatureProposal]:
     return proposals[:n]
 
 
-def propose(n: int, *, offline: bool = False) -> tuple[list[FeatureProposal], str]:
+def order_by_memory(specs: list[FeatureProposal], family_rank: list[str]) -> list[FeatureProposal]:
+    """Sort seed proposals so that families the agent has learned are
+    productive come first (H2). Ties keep their original order, so the
+    behaviour is deterministic given the same memory."""
+    from artha.agent.memory import classify_family
+
+    priority = {fam: i for i, fam in enumerate(family_rank)}
+    return sorted(
+        specs,
+        key=lambda spec: priority.get(classify_family(spec.name, spec.expression), len(priority)),
+    )
+
+
+def propose(
+    n: int, *, offline: bool = False, family_rank: list[str] | None = None
+) -> tuple[list[FeatureProposal], str]:
     """Up to ``n`` validated proposals and the source used ("seeds"/"groq").
 
     Falls back to seeds on any LLM failure — the agent never blocks on the
     provider being down.
     """
     n = min(n, MAX_PROPOSALS)
+    seeds = order_by_memory(SEED_SPECS, family_rank) if family_rank else SEED_SPECS
     api_key = os.environ.get("GROQ_API_KEY")
     if offline or not api_key:
-        return SEED_SPECS[:n], "seeds"
+        return seeds[:n], "seeds"
     try:
         return _propose_llm(n, api_key), "groq"
     except Exception:
-        return SEED_SPECS[:n], "seeds"
+        return seeds[:n], "seeds"

@@ -181,6 +181,19 @@ keywords, empty builtins — model output is audited before evaluation);
 fallback; `loop.py` ridge quick-screen vs the library baseline. Every
 screen appends to the ledger.
 
+**rl/** — Track H. `bandits.py`: LinUCB (contextual) and Thompson
+(context-free) with a documented no-lookahead contract — `select` may
+use only what `update` has already seen, enforced by a test that
+perturbs the future and asserts past actions are unchanged. Used for
+trading-speed control (H1, null) and the research agent's memory (H2).
+Deliberately linear/tabular: ~700 weekly decisions do not support deep
+RL, and zero market impact makes this a bandit rather than an MDP.
+
+**agent/memory.py** — the agent's self-improvement: a Thompson
+posterior over proposal FAMILIES rebuilt from the trial ledger, so the
+next monthly run proposes more of what has historically worked. Never
+touches production.
+
 **singlename/** — Track D. `evalutil.py`: shared costed long/flat metrics (per-side costs, analytics-consistent Sortino). `preprocess.py`: wavelet/EMD/CEEMDAN
 denoising + the causal_transform wrapper (no-lookahead property is
 unit-tested bit-identically). `models.py`: the D3 family — ridge,

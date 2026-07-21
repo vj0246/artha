@@ -17,6 +17,7 @@ import polars as pl
 from sklearn.linear_model import Ridge
 
 from artha.agent.loop import screen_candidate
+from artha.agent.memory import classify_family, rebuild_from_ledger
 from artha.agent.proposer import propose
 from artha.config import load_settings
 from artha.data.calendar import TradingCalendar
@@ -37,6 +38,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--n", type=int, default=3)
     parser.add_argument("--offline", action="store_true")
+    parser.add_argument("--seed", type=int, default=7)
     args = parser.parse_args()
 
     settings = load_settings()
@@ -61,10 +63,19 @@ def main() -> int:
     baseline = run_study(matrix, names, folds, lambda: Ridge(alpha=1.0), model_name="ridge")
     print(f"library baseline: IC {baseline.mean_ic:.4f} (t={baseline.ic_t_stat:.1f})")
 
-    proposals, source = propose(args.n, offline=args.offline)
+    # H2: the agent remembers which FAMILIES of idea have paid off,
+    # rebuilt from the ledger's own record of past screens
+    ledger_path = settings.reports_dir / "ledger.jsonl"
+    memory = rebuild_from_ledger(
+        settings.reports_dir / "agent_memory.json", ledger_path, seed=args.seed
+    )
+    family_rank = memory.rank()
+    print(f"memory ranks families: {family_rank}")
+
+    proposals, source = propose(args.n, offline=args.offline, family_rank=family_rank)
     print(f"{len(proposals)} proposals from {source}")
 
-    ledger = TrialLedger(settings.reports_dir / "ledger.jsonl")
+    ledger = TrialLedger(ledger_path)
     screens = []
     for prop in proposals:
         result = screen_candidate(
@@ -82,8 +93,12 @@ def main() -> int:
                     notes=f"research-agent screen ({source}); delta_ic={result.delta_ic:.5f}",
                 )
             )
+        family = classify_family(prop.name, prop.expression)
+        if result.delta_ic is not None:
+            memory.record(family, result.delta_ic)
         screens.append(
             {
+                "family": family,
                 "name": prop.name,
                 "expression": prop.expression,
                 "rationale": prop.rationale,
@@ -96,9 +111,12 @@ def main() -> int:
         )
         print(f"{prop.name}: {result.status} " + json.dumps(screens[-1], default=str))
 
+    memory.save()
     report = {
         "run_at": datetime.now(UTC).isoformat(),
         "source": source,
+        "family_rank": family_rank,
+        "memory": memory.summary(),
         "baseline_ic": baseline.mean_ic,
         "baseline_t": baseline.ic_t_stat,
         "n_folds": len(folds),

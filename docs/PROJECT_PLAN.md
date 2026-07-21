@@ -27,6 +27,17 @@ design, cost model, QA discipline, verify-list).
 
 ### Post-v2 execution changelog (kept current so VJ can follow every change)
 
+- 2026-07-21 (Track H: RL as control + self-improving agent, ADR 0013): RL enters as a CONTROL
+  method, never a return predictor (Track D already showed the model zoo loses to buy-and-hold;
+  DSR 0.20 leaves no credibility for lottery tickets). Algorithm chosen from the problem: no
+  market impact at Rs 2-5L means contextual bandit not MDP, and ~700 weekly decisions means
+  LinUCB/Thompson not PPO. H1 NULL PUBLISHED — learned tau policy 1.022 vs fixed 1.018 Sharpe,
+  loses the held-out final third, PBO 0.93, near-uniform action counts; the objective surface is
+  flat, so Garleanu-Pedersen's constant is already near-optimal. H2 WORKING — the research agent
+  now learns which idea FAMILIES pay off from the ledger's own history (Thompson posterior);
+  demonstrated flipping its own ranking across two runs after negative liquidity screens. It
+  never edits the live book and every screen stays ledgered. docs/research/track-h-rl.md.
+
 - 2026-07-20 (Track G: ops hygiene, ADR 0012): an ops audit found the alerting had no
   delivery channel (Telegram unset, so freezes/breaks/drift landed only in a log tail) and
   that NOTHING alarmed on silence — a daily cycle that never runs produced no signal, while

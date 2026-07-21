@@ -39,12 +39,23 @@ out-of-sample evidence.
   EMD/CEEMDAN full-series preprocessing reproduces the literature's
   IC 0.41 / Sharpe 3.6 — and collapses to zero when re-decomposed
   causally each day. The leaky-minus-causal gap IS the published edge.
-- **Published nulls, six of them**: cross-sectional ML vs factors
+- **RL, done as control rather than prophecy**: a LinUCB contextual
+  bandit chooses the trading speed each week (no market impact at our
+  size ⇒ bandit not MDP; ~700 decisions ⇒ linear not deep). It ties the
+  fixed Gârleanu-Pedersen constant, loses out of sample, and posts
+  PBO 0.93 with near-uniform action counts — the agent itself reporting
+  that the objective surface is flat. Null published, nothing shipped.
+- **A research agent that learns from its own ledger**: Thompson
+  posterior over idea *families*, rebuilt from recorded IC deltas — it
+  demonstrably flipped its own ranking after two negative liquidity
+  screens. Knowledge compounds; risk does not (it never edits the live
+  book, and every screen stays ledgered).
+- **Published nulls, seven of them**: cross-sectional ML vs factors
   (PBO 0.86); event features at weekly horizon (with inverted Indian
   PEAD, t = −6.9); regime gates beyond vol targeting; single-name model
   zoo vs buy-and-hold (incl. LSTM/transformer, either retrain window);
   sentiment gating (announcement sentiment: Sharpe 0.06 vs 0.58 floor);
-  EWMA vs Ledoit-Wolf covariance.
+  EWMA vs Ledoit-Wolf covariance; learned vs fixed trading speed.
 - **A self-caught correction, kept in the record**: construction v2's
   first headline (Sharpe 1.119, maxDD −21%) was inflated by a
   position-cap bug acting as accidental de-risking; our own code review
@@ -119,7 +130,7 @@ flowchart LR
 
 ```
 uv sync
-uv run pytest                      # 228 tests: unit, lookahead, parity
+uv run pytest                      # 243 tests: unit, lookahead, parity
 uv run python scripts/backfill_bhavcopy.py 2010-01-01 <today>
 uv run python scripts/build_curated.py
 uv run python scripts/run_baselines.py      # P2 factors
@@ -128,6 +139,7 @@ uv run python scripts/run_p5.py             # construction gate
 uv run python scripts/run_construction_v2.py && uv run python scripts/run_spa.py
 uv run python scripts/run_d2_preprocess.py  # the look-ahead exposure
 uv run python scripts/run_dashboard.py      # http://127.0.0.1:8787
+uv run python scripts/run_h1_rl_control.py  # RL control study
 uv run python scripts/run_heartbeat.py      # ops health check
 ```
 

@@ -21,6 +21,11 @@
 - Scheduled tasks: artha-daily 19:00, artha-heartbeat 21:00,
   artha-weekly SAT 10:00, artha-monthly 1st 10:00, artha-quarterly.
   Laptop must be ON at 19:00 (and 21:00 for the heartbeat to fire).
+- Track H (RL, ADR 0013): RL is CONTROL not prediction here. H1 null —
+  LinUCB tau control ties the fixed constant, PBO 0.93, flat objective
+  surface. H2 live — research agent learns idea-family value from the
+  ledger (artha/agent/memory.py + artha/rl/bandits.py), never touches
+  the live book. Do NOT add a return-predicting RL agent (D3 + DSR 0.20).
 - Track G (ops hygiene, ADR 0012): alerts are DURABLE (alerts.jsonl +
   severity, Telegram optional); run_heartbeat.py alarms on SILENCE (a
   cycle that never ran) -> health.json; dashboard health banner + alert
@@ -28,7 +33,7 @@
 - WAITS ON VJ ONLY: Kite credentials (B2/C5/E4), funding >= Rs 2L (B3),
   GROQ_API_KEY (optional), laptop uptime at 19:00.
 - Details: PROJECT_PLAN.md post-v2 changelog (authoritative history),
-  TRACK_B/C/D/E/G_PLAN.md statuses, docs/research/ notes, ADRs 0001-0012,
+  TRACK_B/C/D/E/G/H_PLAN.md statuses, docs/research/ notes, ADRs 0001-0013,
   HANDBOOK.md (full onboarding), SYSTEM_OVERVIEW.md.
 - GPU note: CUDA torch via `uv pip install torch --index-url .../cu126
   --reinstall`; `uv sync` reverts it; always `uv run --no-sync`.
