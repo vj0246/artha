@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Artha — a quant system that knows when it's been fooled</title>
+<meta name="description" content="A systematic equity trading system for Indian markets: researched, validated and operated on zero paid data — and honest about the seven things that didn't work.">
+<style>
+  :root {
+    color-scheme: light;
+    --page:#f9f9f7; --surface:#fcfcfb; --ink:#0b0b0b; --ink2:#52514e; --muted:#898781;
+    --grid:#e1e0d9; --line:#c3c2b7; --ring:rgba(11,11,11,.10);
+    --s1:#2a78d6; --s2:#008300; --crit:#d03b3b; --warn:#eda100;
+  }
+  @media (prefers-color-scheme:dark){:root{
+    color-scheme: dark;
+    --page:#0d0d0d; --surface:#1a1a19; --ink:#fff; --ink2:#c3c2b7; --muted:#898781;
+    --grid:#2c2c2a; --line:#383835; --ring:rgba(255,255,255,.10);
+    --s1:#3987e5; --s2:#008300; --crit:#e66767; --warn:#c98500;
+  }}
+  *{box-sizing:border-box;margin:0}
+  body{font:16px/1.65 system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--ink);background:var(--page);
+       -webkit-font-smoothing:antialiased}
+  .wrap{max-width:940px;margin:auto;padding:0 1.3rem}
+  section{padding:3.4rem 0;border-bottom:1px solid var(--grid)}
+  section:last-of-type{border-bottom:0}
+  h1{font-size:clamp(2rem,5.5vw,3.3rem);line-height:1.08;letter-spacing:-.03em;font-weight:700}
+  h2{font-size:clamp(1.3rem,3vw,1.75rem);letter-spacing:-.02em;margin-bottom:.4rem;font-weight:650}
+  h3{font-size:1rem;font-weight:650;margin-bottom:.3rem}
+  p{margin:.75rem 0;color:var(--ink2);max-width:68ch}
+  .lede{font-size:clamp(1.05rem,2.1vw,1.22rem);color:var(--ink);max-width:60ch}
+  .kicker{font-size:.8rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:600}
+  a{color:var(--s1)}
+  code{font:.88em ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--surface);
+       border:1px solid var(--ring);border-radius:5px;padding:.1em .35em}
+  /* hero */
+  header{padding:4.2rem 0 3rem}
+  .badge{display:inline-flex;gap:.5rem;align-items:center;font-size:.78rem;color:var(--ink2);
+         border:1px solid var(--ring);border-radius:999px;padding:.28rem .8rem;background:var(--surface)}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--s2);animation:p 2.4s infinite}
+  @keyframes p{0%,100%{opacity:1}50%{opacity:.25}}
+  .hero-sub{margin-top:1.1rem}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.75rem;margin-top:2.2rem}
+  .stat{background:var(--surface);border:1px solid var(--ring);border-radius:13px;padding:1rem 1.1rem}
+  .stat b{display:block;font-size:1.7rem;letter-spacing:-.03em;line-height:1.15}
+  .stat span{font-size:.76rem;color:var(--muted);display:block;margin-top:.15rem}
+  .stat em{font-style:normal;font-size:.75rem;color:var(--ink2)}
+  /* two-audience cards */
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:1.6rem}
+  @media(max-width:760px){.cards{grid-template-columns:1fr}}
+  .card{background:var(--surface);border:1px solid var(--ring);border-radius:13px;padding:1.2rem 1.3rem}
+  .card p{margin:.5rem 0 0;font-size:.94rem}
+  /* table */
+  table{width:100%;border-collapse:collapse;font-size:.92rem;margin-top:1.1rem}
+  th,td{text-align:right;padding:.55rem .6rem;border-bottom:1px solid var(--grid);font-variant-numeric:tabular-nums}
+  th{color:var(--muted);font-weight:550;font-size:.8rem}
+  th:first-child,td:first-child{text-align:left}
+  tr.live td{font-weight:650;color:var(--ink)}
+  .tblwrap{overflow-x:auto}
+  /* callout */
+  .callout{border-left:3px solid var(--s1);background:var(--surface);border-radius:0 11px 11px 0;
+           padding:1rem 1.2rem;margin:1.4rem 0}
+  .callout.warn{border-left-color:var(--warn)}
+  .callout.crit{border-left-color:var(--crit)}
+  .callout p{margin:.35rem 0}
+  .callout p:first-child{margin-top:0}
+  /* nulls */
+  ol.nulls{margin:1.2rem 0 0;padding-left:0;list-style:none;counter-reset:n}
+  ol.nulls li{counter-increment:n;position:relative;padding:.65rem 0 .65rem 2.6rem;border-bottom:1px solid var(--grid);
+              color:var(--ink2);font-size:.95rem}
+  ol.nulls li:last-child{border-bottom:0}
+  ol.nulls li::before{content:counter(n);position:absolute;left:0;top:.62rem;width:1.7rem;height:1.7rem;
+    border-radius:50%;background:var(--surface);border:1px solid var(--ring);display:grid;place-items:center;
+    font-size:.78rem;color:var(--muted);font-weight:600}
+  ol.nulls b{color:var(--ink);font-weight:600}
+  /* chart */
+  figure{margin:1.5rem 0 0;background:var(--surface);border:1px solid var(--ring);border-radius:13px;padding:1.2rem}
+  figcaption{font-size:.82rem;color:var(--muted);margin-top:.7rem}
+  svg{display:block;width:100%;height:auto;overflow:visible}
+  svg text{font:11px system-ui,sans-serif;fill:var(--muted)}
+  svg text.val{fill:var(--ink);font-weight:600;font-size:12px}
+  svg text.lab{fill:var(--ink2);font-size:11.5px}
+  .legend{display:flex;gap:1.2rem;font-size:.8rem;color:var(--ink2);margin-top:.7rem;flex-wrap:wrap}
+  .legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:.35rem;vertical-align:-1px}
+  /* fix list */
+  .fixes{display:grid;gap:.7rem;margin-top:1.2rem}
+  .fix{background:var(--surface);border:1px solid var(--ring);border-radius:11px;padding:.95rem 1.15rem}
+  .fix h3{font-size:.94rem}
+  .fix p{font-size:.9rem;margin:.3rem 0 0}
+  /* pipeline */
+  .flow{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:.75rem;margin-top:1.3rem}
+  .step{background:var(--surface);border:1px solid var(--ring);border-radius:12px;padding:1rem 1.1rem}
+  .step .n{font-size:.72rem;color:var(--muted);letter-spacing:.1em;font-weight:600}
+  .step h3{margin:.25rem 0 .3rem;font-size:.95rem}
+  .step p{font-size:.85rem;margin:0}
+  footer{padding:2.8rem 0 3.6rem;color:var(--muted);font-size:.87rem}
+  footer a{color:var(--ink2)}
+  .links{display:flex;gap:1.1rem;flex-wrap:wrap;margin-top:.8rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <span class="badge"><span class="dot"></span>trading paper daily · 243 tests green</span>
+  <h1 style="margin-top:1.2rem">A quant system that knows<br>when it's been fooled.</h1>
+  <p class="lede hero-sub">Artha researches, validates and <em>operates</em> a systematic equity
+  strategy on India's NSE — built entirely on free exchange data. Its most valuable output isn't
+  the strategy. It's the seven things it proved don't work, including one that a whole literature
+  believes does.</p>
+
+  <div class="stats">
+    <div class="stat"><b>1.02</b><span>net Sharpe, live config</span><em>vs 0.94 index</em></div>
+    <div class="stat"><b>0.20</b><span>deflated Sharpe</span><em>counted vs 108 trials</em></div>
+    <div class="stat"><b>7</b><span>published nulls</span><em>the real contribution</em></div>
+    <div class="stat"><b>₹0</b><span>spent on data</span><em>primary sources only</em></div>
+  </div>
+</header>
+
+<section>
+  <span class="kicker">What it actually is</span>
+  <h2>Two explanations, pick yours</h2>
+  <div class="cards">
+    <div class="card">
+      <h3>If you've never traded</h3>
+      <p>Imagine a machine that reads every price on India's largest stock exchange each evening,
+      picks 25 companies to hold, places the orders, checks its own books, and messages you if
+      something looks wrong.</p>
+      <p>Now the hard part: proving the machine is <em>skilled</em> rather than lucky. Financial
+      data will happily hand you a beautiful answer that is completely false. Most of this project
+      is the proving.</p>
+    </div>
+    <div class="card">
+      <h3>If you trade</h3>
+      <p>Point-in-time NSE panel from primary bhavcopy plus the declared corporate-action feed
+      (delistings included, factors verified against ex-day prices <em>both ways</em>). Weekly
+      cross-sectional momentum through Ledoit-Wolf min-variance construction with
+      Gârleanu-Pedersen partial adjustment, vol targeting, ADV caps, T+1-close execution, full
+      Indian cost stack.</p>
+      <p>Validation: purged walk-forward + CPCV, deflated Sharpe against an append-only trial
+      ledger, White Reality Check and Hansen SPA. Backtest/engine parity is a CI gate.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <span class="kicker">Results</span>
+  <h2>The numbers, stated the way the project states them</h2>
+  <p>Net of the complete Indian cost stack — securities transaction tax, stamp duty, exchange
+  fees, GST, the flat per-scrip depository charge, and square-root market impact — 2012 to 2026.</p>
+
+  <div class="tblwrap">
+  <table>
+    <tr><th>Portfolio</th><th>CAGR</th><th>Sharpe</th><th>Max drawdown</th><th>Turnover</th></tr>
+    <tr class="live"><td>Min-var + τ0.5 — the live config</td><td>13.7%</td><td>1.02</td><td>−28%</td><td>4.2×</td></tr>
+    <tr><td>Equal-weight + no-trade bands</td><td>12.8%</td><td>0.96</td><td>−27%</td><td>5.2×</td></tr>
+    <tr><td>Naive momentum 12-1</td><td>23.6%</td><td>0.96</td><td>−49%</td><td>—</td></tr>
+    <tr><td>NIFTY 500 (synthetic total return)</td><td>14.97%</td><td>0.94</td><td>−38%</td><td>—</td></tr>
+  </table>
+  </div>
+
+  <div class="callout warn">
+    <p><b>Read that table honestly.</b> The live book earns <em>less raw return</em> than the index
+    (13.7% vs 14.97%) at <em>lower volatility</em> — which is why its Sharpe is higher. It's a
+    risk-adjusted win, not a return win. After Indian short-term capital-gains tax the CAGR is
+    11.0%.</p>
+    <p>And deflated against all 108 experiments in the trial ledger, that Sharpe's statistical
+    significance is <b>0.20</b> — economically attractive, statistically unproven, and reported
+    exactly that way everywhere in the repo.</p>
+    <p>Most projects report the best figure they found. This one reports the figure that survives
+    being counted.</p>
+  </div>
+</section>
+
+<section>
+  <span class="kicker">The headline finding</span>
+  <h2>A popular class of forecasting papers is measuring look-ahead</h2>
+  <p>A large applied literature reports spectacular daily equity forecasting after
+  <em>decomposition preprocessing</em> — EMD, CEEMDAN, wavelet hybrids. Information coefficients
+  above 0.3, Sharpe ratios above 3.</p>
+  <p>We reproduced those numbers exactly on ICICI Bank. Then we changed one thing: instead of
+  decomposing the whole price history at once, we recomputed the identical transform <em>causally</em>
+  — at each day using only data available up to that day, which is the only version you could ever
+  actually trade.</p>
+
+  <figure>
+    <svg viewBox="0 0 700 260" role="img" aria-label="Net Sharpe by preprocessing variant: leaky EMD 3.62, causal EMD 0.22">
+      <line x1="150" y1="215" x2="690" y2="215" stroke="var(--line)"/>
+      <!-- gridlines -->
+      <g>
+        <line x1="150" y1="215" x2="690" y2="215" stroke="var(--grid)"/>
+        <line x1="150" y1="163" x2="690" y2="163" stroke="var(--grid)"/>
+        <line x1="150" y1="111" x2="690" y2="111" stroke="var(--grid)"/>
+        <line x1="150" y1="59" x2="690" y2="59" stroke="var(--grid)"/>
+        <text x="144" y="219" text-anchor="end">0</text>
+        <text x="144" y="167" text-anchor="end">1</text>
+        <text x="144" y="115" text-anchor="end">2</text>
+        <text x="144" y="63" text-anchor="end">3</text>
+      </g>
+      <!-- bars: y = 215 - sharpe*52 -->
+      <rect x="176" y="26" width="86" height="189" rx="4" fill="var(--crit)"/>
+      <text class="val" x="219" y="18" text-anchor="middle">3.62</text>
+      <text class="lab" x="219" y="234" text-anchor="middle">EMD, leaky</text>
+      <text x="219" y="249" text-anchor="middle">as published</text>
+
+      <rect x="286" y="26" width="86" height="189" rx="4" fill="var(--crit)"/>
+      <text class="val" x="329" y="18" text-anchor="middle">3.62</text>
+      <text class="lab" x="329" y="234" text-anchor="middle">CEEMDAN, leaky</text>
+
+      <rect x="396" y="204" width="86" height="11" rx="4" fill="var(--s2)"/>
+      <text class="val" x="439" y="196" text-anchor="middle">0.22</text>
+      <text class="lab" x="439" y="234" text-anchor="middle">EMD, causal</text>
+      <text x="439" y="249" text-anchor="middle">tradeable</text>
+
+      <rect x="506" y="195" width="86" height="20" rx="4" fill="var(--s2)"/>
+      <text class="val" x="549" y="187" text-anchor="middle">0.38</text>
+      <text class="lab" x="549" y="234" text-anchor="middle">wavelet, causal</text>
+
+      <rect x="616" y="218" width="60" height="4" rx="2" fill="var(--muted)"/>
+      <text class="val" x="646" y="240" text-anchor="middle">−0.06</text>
+      <text class="lab" x="646" y="255" text-anchor="middle">raw returns</text>
+    </svg>
+    <div class="legend">
+      <span><i style="background:var(--crit)"></i>uses future data (as published)</span>
+      <span><i style="background:var(--s2)"></i>causal — actually tradeable</span>
+    </div>
+    <figcaption>Same data, same model, same costs. The only difference is whether the transform
+    was allowed to see the future. The gap <em>is</em> the published result.</figcaption>
+  </figure>
+
+  <p>The entire edge vanished. That's what a global transform applied before a temporal split does
+  to you — every "training" sample silently becomes a function of future prices. Written up as a
+  working paper in the repo.</p>
+</section>
+
+<section>
+  <span class="kicker">The real contribution</span>
+  <h2>Seven things that don't work</h2>
+  <p>Nulls are the expensive, useful output of research — and the ones nobody publishes.</p>
+  <ol class="nulls">
+    <li><b>Machine learning doesn't beat momentum.</b> Ridge, LightGBM, MLP and a transformer under
+    one purged protocol. PBO 0.86 — the in-sample winner is overfit 24 times out of 28 splits.</li>
+    <li><b>Post-earnings drift runs backwards in India.</b> 1.48M timestamped exchange
+    announcements; the biggest positive surprises <em>reverse</em> (t = −6.9).</li>
+    <li><b>Momentum-crash regime gates add nothing</b> beyond the volatility targeting already
+    shipped.</li>
+    <li><b>The single-name model zoo loses to buy-and-hold.</b> GRU, LSTM, transformer, ensemble —
+    all under half the always-long floor after costs. Retraining cadence turned out irrelevant: the
+    problem is absence of signal, not staleness.</li>
+    <li><b>News sentiment gating subtracts value</b> (0.06 vs 0.58 Sharpe) — consistent with the
+    inverted drift above.</li>
+    <li><b>EWMA covariance doesn't beat Ledoit-Wolf</b> — faster adaptation, paid for in churn.</li>
+    <li><b>A learned trading-speed policy ties the fixed constant.</b> A contextual bandit over 728
+    weekly decisions: PBO 0.93, near-uniform action counts — the agent itself reporting that the
+    objective surface is flat and the analytical constant is already near-optimal.</li>
+  </ol>
+</section>
+
+<section>
+  <span class="kicker">Credibility</span>
+  <h2>Four times this project was wrong — in public</h2>
+  <p>A research system's credibility isn't how good its numbers look. It's what happens when
+  they're wrong.</p>
+  <div class="fixes">
+    <div class="fix">
+      <h3>The data feed lied</h3>
+      <p>The exchange's declared corporate-action feed contained a 1:5 stock split that never
+      happened, manufacturing a <b>+398% phantom return</b>. The adjuster now verifies every declared
+      factor against the ex-day price and rejects contradictions — catching 14 phantom events
+      across sixteen years.</p>
+    </div>
+    <div class="fix">
+      <h3>We caught ourselves inflating a headline</h3>
+      <p>A construction upgrade first measured Sharpe 1.119 with a −21% drawdown. Our own code
+      review found a position-cap bug quietly parking money in cash — accidental de-risking.
+      Corrected to <b>1.018</b>. Both numbers stay in the record.</p>
+    </div>
+    <div class="fix">
+      <h3>We corrected our own significance claim</h3>
+      <p>"The strategy family beats the index (p = 0.0415)" turned out to be carried by a naive
+      baseline inside that family. Across constructed configurations alone, <b>p = 0.655</b>. The
+      claim is now stated precisely: a risk-adjusted win, not a raw-return win.</p>
+    </div>
+    <div class="fix">
+      <h3>A promising upgrade was refused</h3>
+      <p>A blended signal scored Sharpe 1.30 against the live 1.02 — then failed two of four
+      <em>pre-registered</em> gates. It was held, not shipped. The friendlier re-test that might
+      have rescued it was deliberately never run.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <span class="kicker">Engineering</span>
+  <h2>It runs itself, and watches itself</h2>
+  <div class="flow">
+    <div class="step"><span class="n">01</span><h3>Point-in-time data</h3>
+      <p>Immutable raw zone with sha256 manifests. Every delisted company retained — survivorship
+      bias measured at +2.5pp/yr of imaginary alpha.</p></div>
+    <div class="step"><span class="n">02</span><h3>Proving it isn't luck</h3>
+      <p>Purged CV, CPCV, PBO, deflated Sharpe, Reality Check/SPA — and a ledger that counts every
+      experiment ever run, forever.</p></div>
+    <div class="step"><span class="n">03</span><h3>Trading it</h3>
+      <p>Backtest/engine parity enforced in CI. Deterministic order ids make a crashed rerun unable
+      to double-trade. Drawdown rails halve or freeze the book automatically.</p></div>
+    <div class="step"><span class="n">04</span><h3>Watching itself</h3>
+      <p>Signal-decay and feature-drift alarms daily. A heartbeat that fires on <em>silence</em> —
+      the failure that otherwise looks exactly like success.</p></div>
+  </div>
+
+  <div class="callout">
+    <p><b>An alert nobody receives isn't an alert.</b> Every alarm is written durably to disk before
+    any push channel is attempted. Nothing auto-remediates — alarms inform, humans decide.</p>
+  </div>
+
+  <p>There's also a research agent that proposes new features, executes them inside an
+  AST-whitelisted sandbox (model output is never run unaudited), screens them under the standard
+  protocol, and keeps a posterior over which <em>kinds</em> of idea have historically paid off. It
+  has demonstrably changed its mind: after two negative liquidity screens, it reordered what it
+  tries next. Knowledge compounds; risk doesn't, because it never touches the live book.</p>
+</section>
+
+<footer>
+  <div class="wrap" style="padding:0">
+    <p><b style="color:var(--ink)">Artha</b> — built by VJ. Python, polars, uv, mypy --strict,
+    243 tests including a look-ahead suite and a backtest/live parity gate.</p>
+    <p style="font-size:.84rem">Limitations are disclosed, not hidden: synthetic TRI benchmark,
+    static sector map, cash at 0%, paper slippage degenerate until live quotes, DSR 0.20 counted
+    conservatively. A limitation you disclose can't ambush you later.</p>
+    <div class="links">
+      <a href="https://github.com/vj0246/artha">Source on GitHub →</a>
+      <a href="https://github.com/vj0246/artha/blob/main/docs/research/PAPER_leaky_decomposition.md">The working paper →</a>
+      <a href="https://github.com/vj0246/artha/blob/main/docs/research/ARTHA_RESEARCH_REPORT.md">Full research report →</a>
+      <a href="https://github.com/vj0246/artha/blob/main/docs/HANDBOOK.md">Engineering handbook →</a>
+    </div>
+  </div>
+</footer>
+
+</div>
+</body>
+</html>

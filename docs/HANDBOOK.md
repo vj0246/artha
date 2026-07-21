@@ -204,9 +204,6 @@ artifacts (localhost only); `static/index.html`: dependency-free page
 (SVG charts, crosshair tooltips, live IST clock, captions). No CDNs,
 no auth, no writes.
 
-**news/** — namespace for D4 growth (collectors currently live in
-scripts/; promote shared logic here when it stabilizes).
-
 ### scripts/ (entrypoints; each has a usage docstring — read it)
 
 Backfills (all idempotent, raw-zone only): `backfill_bhavcopy.py`,

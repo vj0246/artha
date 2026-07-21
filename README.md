@@ -2,159 +2,229 @@
 
 [![ci](https://github.com/vj0246/artha/actions/workflows/ci.yml/badge.svg)](https://github.com/vj0246/artha/actions/workflows/ci.yml)
 
-A survivorship-free, research-to-production quant platform for NSE cash
-equities — primary exchange data, Lopez de Prado-grade validation,
-unattended daily paper operations, self-monitoring, and honest about
-every number including the ones that got worse under scrutiny.
+**A systematic equity trading system for Indian markets — researched,
+validated, and actually operated, on ₹0 of paid data.**
 
-**Working paper: [Decomposition preprocessing is look-ahead](docs/research/PAPER_leaky_decomposition.md)
-· Research report (Parts I + II): [docs/research/ARTHA_RESEARCH_REPORT.md](docs/research/ARTHA_RESEARCH_REPORT.md)
-· New-maintainer handbook: [docs/HANDBOOK.md](docs/HANDBOOK.md)
-· System overview: [docs/SYSTEM_OVERVIEW.md](docs/SYSTEM_OVERVIEW.md)**
+It runs by itself at 7pm every evening. It knows when it has been
+fooled. And the most valuable thing it produced is a list of things
+that *don't* work.
 
-## Headline results (net of full Indian costs)
+---
+
+## Start here: what is this, really?
+
+**If you've never traded:** imagine a machine that reads every price on
+India's largest stock exchange each evening, decides which 25 companies
+to hold, places the orders, checks its own books, and messages you if
+anything looks wrong. Now imagine the harder part — proving the machine
+is actually skilled rather than lucky, because financial data will hand
+you a beautiful-looking answer that is completely false if you aren't
+careful. Most of this project is the proving.
+
+**If you trade:** point-in-time NSE panel from primary bhavcopy +
+declared corporate actions (delistings included, CA feed verified
+against ex-day prices in both directions), weekly cross-sectional
+momentum, Ledoit-Wolf minimum-variance construction with
+Gârleanu-Pedersen partial adjustment, vol targeting, ADV participation
+caps, T+1-close execution, full Indian cost stack (STT, stamp,
+exchange, GST, flat DP charges, sqrt impact). Validation is purged
+walk-forward + CPCV, deflated Sharpe against an append-only trial
+ledger, White Reality Check and Hansen SPA. The live layer has
+backtest/engine parity as a CI gate, deterministic idempotent order
+ids, enforced drawdown rails, and a heartbeat that alarms on silence.
+
+**One line:** a research lab that happens to trade, built so its own
+results can't lie to it.
+
+---
+
+## The results
+
+Net of the complete Indian cost stack, 2012–2026:
 
 | Portfolio | CAGR | Sharpe | MaxDD | Turnover |
 |---|---|---|---|---|
-| **LW min-var + GP τ0.5 (live config)** | 13.7% | **1.02** | −28% | 4.2× |
-| Equal-weight + bands (P5 baseline) | 12.8% | 0.96 | −27% | 5.2× |
+| **LW min-var + GP τ0.5 — the live config** | 13.7% | **1.02** | −28% | 4.2× |
+| Equal-weight + no-trade bands (previous) | 12.8% | 0.96 | −27% | 5.2× |
 | Naive momentum 12-1 | 23.6% | 0.96 | −49% | — |
-| NIFTY 500 (synthetic TRI) | 14.4% | 0.95 | −38% | — |
+| NIFTY 500 (synthetic TRI) | 14.97% | 0.94 | −38% | — |
 
-Family-level data-snooping (White RC p = 0.012, Hansen SPA p = 0.0415)
-rejects "nothing beats the index" for the family that includes the naive
-fully-invested momentum baseline. Over CONSTRUCTED configurations only,
-SPA p = 0.655: the shipped book wins on **risk-adjusted** return (Sharpe
-1.02 vs 0.94) and drawdown, at lower vol and slightly lower raw return
-than the index — stated precisely because the distinction matters
-(ADR 0011). Deflated Sharpe against the full ledger: **0.20** — economically attractive, statistically unproven, reported
-exactly that way while the 30-session live-paper gate accumulates the
-out-of-sample evidence.
+**Read that table the way the project does:** the live book earns *less
+raw return* than the index (13.7% vs 14.97%) at *lower volatility* —
+which is why its Sharpe is higher. It is a risk-adjusted win, not a
+return win. After Indian short-term capital-gains tax the CAGR is
+11.0%. And deflated against all ~100 experiments in the trial ledger,
+the significance of that Sharpe is **0.20** — economically attractive,
+statistically unproven, and stated exactly that way everywhere here.
 
-## Findings a quant should actually read
+That last number is the point. Most projects report the best figure
+they found. This one reports the figure that survives being counted.
 
-- **Survivorship bias, measured**: the identical strategy on a
-  survivor-only universe reports +2.5pp/yr CAGR that never existed.
-- **Decomposition preprocessing is look-ahead** (single-name lab):
-  EMD/CEEMDAN full-series preprocessing reproduces the literature's
-  IC 0.41 / Sharpe 3.6 — and collapses to zero when re-decomposed
-  causally each day. The leaky-minus-causal gap IS the published edge.
-- **RL, done as control rather than prophecy**: a LinUCB contextual
-  bandit chooses the trading speed each week (no market impact at our
-  size ⇒ bandit not MDP; ~700 decisions ⇒ linear not deep). It ties the
-  fixed Gârleanu-Pedersen constant, loses out of sample, and posts
-  PBO 0.93 with near-uniform action counts — the agent itself reporting
-  that the objective surface is flat. Null published, nothing shipped.
-- **A research agent that learns from its own ledger**: Thompson
-  posterior over idea *families*, rebuilt from recorded IC deltas — it
-  demonstrably flipped its own ranking after two negative liquidity
-  screens. Knowledge compounds; risk does not (it never edits the live
-  book, and every screen stays ledgered).
-- **Published nulls, seven of them**: cross-sectional ML vs factors
-  (PBO 0.86); event features at weekly horizon (with inverted Indian
-  PEAD, t = −6.9); regime gates beyond vol targeting; single-name model
-  zoo vs buy-and-hold (incl. LSTM/transformer, either retrain window);
-  sentiment gating (announcement sentiment: Sharpe 0.06 vs 0.58 floor);
-  EWMA vs Ledoit-Wolf covariance; learned vs fixed trading speed.
-- **A self-caught correction, kept in the record**: construction v2's
-  first headline (Sharpe 1.119, maxDD −21%) was inflated by a
-  position-cap bug acting as accidental de-risking; our own code review
-  found it, the honest number is 1.018, and both figures stay in the
-  report because the correction is the credential.
-- **A validated upgrade candidate, held to the bar**: the momentum +
-  low-vol rank blend scores Sharpe 1.30 vs 1.02 live — and stays
-  unshipped until it passes the same CPCV/SPA/DSR battery that revised
-  min-var's own headline downward.
-- **Post-tax truth**: STCG turns 13.7% CAGR into 11.0% (Sharpe 1.02 →
-  0.82) — computed before real money, because that's the number an
-  account actually compounds.
-- **Small-capital microstructure**: flat ₹15.34 DP charges + integer
-  shares make ₹1L structurally unviable (38 bps/exit, 5.2% weight
-  steps); minimum viable capital is measured at ₹2L, comfortable at ₹5L.
-- **Data feeds lie**: the declared corporate-action feed contained 14
-  phantom events (a fake 1:5 TVSMOTOR split manufactured a +398%
-  return). The adjuster now verifies every declared factor against the
-  ex-day price and persists rejections as QA artifacts.
+---
 
-## Architecture
+## Seven things that didn't work (the actual contribution)
+
+Nulls are the expensive, useful output of research. These are ours:
+
+1. **Machine learning doesn't beat momentum.** Ridge, LightGBM, MLP and
+   a transformer under one purged protocol. PBO 0.86 — the in-sample
+   winner is overfit 24 times out of 28 splits.
+2. **Post-earnings drift runs *backwards* in India.** 1.48M timestamped
+   exchange announcements; the biggest positive surprises **reverse**
+   (t = −6.9). Event features add no weekly alpha.
+3. **Momentum-crash regime gates add nothing** beyond the volatility
+   targeting already shipped.
+4. **The single-name model zoo loses to buy-and-hold.** GRU, LSTM,
+   transformer, ensemble — all under half the always-long floor after
+   costs, under both retraining schemes. Retraining cadence turned out
+   irrelevant: the problem is absence of signal, not staleness.
+5. **News sentiment gating subtracts value** (0.06 vs 0.58 Sharpe),
+   consistent with the inverted drift in #2.
+6. **EWMA covariance doesn't beat Ledoit-Wolf** — faster adaptation,
+   paid for in churn.
+7. **A learned trading-speed policy ties the fixed constant.** LinUCB
+   over 728 weekly decisions: PBO 0.93 and near-uniform action counts —
+   the agent itself reporting that the objective surface is flat and
+   Gârleanu-Pedersen's constant is already near-optimal.
+
+**And the headline finding, written up as a working paper:**
+[decomposition preprocessing is look-ahead](docs/research/PAPER_leaky_decomposition.md).
+A large literature reports Sharpe 3+ on daily equity forecasting after
+EMD/CEEMDAN preprocessing. We reproduced those numbers *exactly* — IC
+0.41, Sharpe 3.6 — then recomputed the identical transform causally, so
+no future data could touch any training input. **The entire edge
+vanished** (IC −0.04). The leaky-minus-causal gap *is* the published
+result — which is what a global transform applied before a temporal
+split does to you.
+
+---
+
+## Things that went wrong, and were fixed in public
+
+A research system's credibility is how it behaves when it's wrong.
+
+- **The data feed lied.** The declared corporate-action feed carried a
+  1:5 TVSMOTOR split that never happened, manufacturing a +398% phantom
+  return. The adjuster now verifies every declared factor against the
+  ex-day price and rejects contradictions — it caught **14** phantom
+  events across the history.
+- **We caught ourselves inflating a headline.** Construction v2 first
+  measured Sharpe 1.119 with a −21% drawdown. Our own code review found
+  a position-cap bug silently parking gross in cash — accidental
+  de-risking. Corrected to **1.018**. Both numbers stay in the record.
+- **We corrected our own significance claim.** "The family beats the
+  index (SPA p = 0.0415)" turned out to be carried by a naive
+  fully-invested baseline inside that family; across constructed
+  configurations alone, p = 0.655. The claim is now stated precisely.
+- **A promising upgrade was refused.** A momentum + low-vol blend scored
+  Sharpe 1.30 against the live 1.02, then failed two of four
+  pre-registered gates (PBO 0.500, SPA 0.655). It was **held, not
+  shipped** — and the friendlier re-test that might have rescued it was
+  deliberately not run.
+
+---
+
+## How it runs itself
 
 ```mermaid
 flowchart LR
-  subgraph DATA["PIT data layer"]
-    A[NSE bhavcopy · CA feed<br/>announcements · F&O · news RSS/GDELT] --> C[immutable raw zone<br/>sha256 manifest]
-    C --> D[curated parquet<br/>CA sanity gate · QA]
+  subgraph DATA["1 · Point-in-time data"]
+    A[NSE bhavcopy · corporate actions<br/>announcements · F&O · news] --> C[immutable raw zone<br/>sha256 manifest]
+    C --> D[curated panel<br/>CA sanity gate · QA]
   end
-  subgraph RESEARCH["research machinery"]
-    D --> F[purged WF-CV · CPCV · DSR<br/>PBO · RC/SPA · trial ledger]
-    F --> G[construction: LW min-var<br/>GP τ · vol target · caps]
-    G --> H[vectorized backtest<br/>T+1-close execution]
-    D --> LAB[single-name lab:<br/>causal preprocessing · model zoo · sentiment]
+  subgraph RESEARCH["2 · Proving it isn't luck"]
+    D --> F[purged CV · CPCV · PBO<br/>deflated Sharpe · SPA · trial ledger]
+    F --> G[construction<br/>LW min-var · GP τ · vol target]
+    G --> H[backtest<br/>T+1-close execution]
+    D --> LAB[single-name lab<br/>causal preprocessing · model zoo]
   end
-  subgraph LIVE["production"]
+  subgraph LIVE["3 · Trading it"]
     H <-- parity gate in CI --> I[event-driven engine]
-    I --> J[OMS: idempotent ids<br/>pre-trade checks]
+    I --> J[OMS · idempotent ids<br/>pre-trade checks]
     J --> K[paper broker /<br/>key-gated Zerodha Kite]
     K --> L[daily 19:00 cycle]
   end
-  subgraph ADAPT["monitoring & refresh"]
-    L --> M[signal health: IC decay<br/>PSI drift · DSR refresh]
-    M --> N[weekly review · readiness eval<br/>monthly agent · quarterly re-validation]
-    N -. re-earns its seat .-> G
+  subgraph WATCH["4 · Watching itself"]
+    L --> M[signal health · IC decay<br/>PSI drift · DSR refresh]
+    M --> N[heartbeat · alarms on SILENCE<br/>weekly · monthly · quarterly re-validation]
+    N -. must re-earn its seat .-> G
   end
 ```
 
-## Production discipline
+**Five scheduled jobs, all registered:** trade at 19:00; heartbeat at
+21:00 asking *did any of that actually happen?*; a weekly
+live-vs-research divergence check; monthly research-agent screens;
+quarterly re-validation of the shipped configuration.
 
-- Backtest/live **parity is a CI gate** (<2e-5/day); **zero-lookahead is
-  a CI suite** (planted-jump caught a real bug); the sanity gates run
-  both directions (prices vs declared CAs and back).
-- **Unattended daily operation**: scheduled 19:00 cycle, idempotent end
-  to end, one non-dry log row per session, `scheme_used` logged, kill
-  switch + enforced drawdown rails, emergency flatten that bypasses its
-  own pre-trade caps (tested with 85 positions).
-- **Self-monitoring**: IC decay + feature-drift (PSI) alerts daily; DSR
-  re-deflated against the live ledger; weekly live-vs-research replay
-  (with proper risk-model warmup); monthly research-agent screens and
-  quarterly re-validation, all ledgered.
-- **Alarms that survive**: every alert is appended to `alerts.jsonl`
-  with a severity before any push channel, because a push channel you
-  forgot to configure is not an alarm. A nightly heartbeat monitors the
-  failure mode nothing else catches — **silence**: a cycle that never
-  ran, a refused scheduled task, a stalled B1 clock, an active freeze.
-  Health is pinned at the top of the dashboard. No auto-remediation by
-  design: alarms inform, humans decide.
-- **Quantified go/no-go**: PSR, minimum track record length, Kupiec VaR
-  exceptions, tracking error, capital sizing.
+**The alarm philosophy:** an alert nobody receives isn't an alert. Every
+alarm is written durably to disk before any push channel is attempted,
+and the loudest failure mode — **silence**, a cycle that never ran — has
+its own dedicated watchdog. Nothing auto-remediates: alarms inform,
+humans decide.
 
-## Reproduce
+**A research agent that learns.** It proposes new features, runs them
+through an AST-sandboxed DSL (model output is never executed unaudited),
+screens them under the standard protocol, and keeps a Thompson-sampling
+posterior over which *families* of idea have historically paid off,
+rebuilt from the ledger's own history. It has demonstrably changed its
+mind: after two negative liquidity screens it reordered what it tries
+next. Knowledge compounds; risk doesn't, because it never touches the
+live book.
 
-```
+---
+
+## Run it yourself
+
+```bash
 uv sync
-uv run pytest                      # 243 tests: unit, lookahead, parity
+uv run pytest                               # 243 tests: unit, lookahead, parity
+
+# rebuild the world from primary sources (hours, all resumable)
 uv run python scripts/backfill_bhavcopy.py 2010-01-01 <today>
 uv run python scripts/build_curated.py
-uv run python scripts/run_baselines.py      # P2 factors
-uv run python scripts/run_model_study.py    # P3 ML null
-uv run python scripts/run_p5.py             # construction gate
-uv run python scripts/run_construction_v2.py && uv run python scripts/run_spa.py
+
+# reproduce the findings
+uv run python scripts/run_baselines.py      # factor baselines
+uv run python scripts/run_model_study.py    # the ML null
 uv run python scripts/run_d2_preprocess.py  # the look-ahead exposure
+uv run python scripts/run_construction_v2.py && uv run python scripts/run_spa.py
+uv run python scripts/run_h1_rl_control.py  # the RL control null
+
+# operate it
 uv run python scripts/run_dashboard.py      # http://127.0.0.1:8787
-uv run python scripts/run_h1_rl_control.py  # RL control study
-uv run python scripts/run_heartbeat.py      # ops health check
+uv run python scripts/run_heartbeat.py      # ops health
 ```
 
-The dashboard is **localhost-only by design** — it shows live positions,
-equity and operational state with no authentication, so it is not
-deployed anywhere (ADR 0012).
+| Document | What it's for |
+|---|---|
+| [HANDBOOK](docs/HANDBOOK.md) | Every folder, file and decision; from-scratch setup; the gotchas that cost real time |
+| [SYSTEM_OVERVIEW](docs/SYSTEM_OVERVIEW.md) | The condensed map |
+| [RESEARCH REPORT](docs/research/ARTHA_RESEARCH_REPORT.md) | The full study, Parts I & II |
+| [WORKING PAPER](docs/research/PAPER_leaky_decomposition.md) | The look-ahead finding |
+| [RUNBOOK](docs/RUNBOOK.md) | Daily operations, alarms, kill switch |
+| [PROJECT_PLAN](docs/PROJECT_PLAN.md) | Authoritative plan + full execution history |
+| [decisions/](docs/decisions/) | 13 ADRs — every irreversible choice, with its evidence |
 
-Full bootstrap (every backfill, study, and scheduled task):
-[docs/HANDBOOK.md](docs/HANDBOOK.md). Data lives outside the repo
-(`~/quant-data`, override `ARTHA_DATA_DIR`).
+The HANDBOOK is written so a stranger can carry this project forward
+with no verbal handover.
+
+The ops dashboard is **localhost-only by design**: it shows live
+positions, equity and operational state with no authentication, so it is
+not deployed anywhere
+([ADR 0012](docs/decisions/0012-track-g-ops-hygiene.md)).
+
+---
 
 ## Honest limitations
 
-Synthetic TRI benchmark; static current-sector map; cash at 0%; hedge
-margin financing unmodeled; paper slippage degenerate until live quotes;
-DSR 0.20 vs the full ledger (conservative counting, but the direction is
-the point); announcement taxonomy 81% accurate. Tracked in the plan's
-verify-list with dates.
+Synthetic TRI benchmark (no free NIFTY 500 TRI exists); static
+current-sector map; cash earns 0%; hedge margin financing unmodelled;
+paper slippage degenerate until live quotes arrive; announcement
+taxonomy 81% accurate (audited); GDELT news coverage reached 72 of 115
+months before the free API rate-limited us; and DSR 0.20 counts every
+single-name experiment against the cross-sectional book, which is
+conservative — but the direction is the point.
+
+Every one is tracked with a confirmation date in the plan's verify-list.
+Nothing here is hidden, because a limitation you disclose can't ambush
+you later.
