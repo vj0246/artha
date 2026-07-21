@@ -171,12 +171,16 @@ class TestAlertDurability:
         assert rows[0]["at"].startswith("20")
 
     def test_alert_never_raises_when_data_dir_is_unwritable(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         from artha.live.safety import alert
 
-        # a path that cannot be created: alerting must degrade, never crash
-        monkeypatch.setenv("ARTHA_DATA_DIR", "\x00invalid")
+        # data dir rooted under a FILE: mkdir cannot succeed, on any platform
+        # (a NUL-byte path is not portable — POSIX setenv rejects it outright).
+        # Alerting must degrade, never crash the runbook.
+        blocker = tmp_path / "blocker"
+        blocker.write_text("not a directory", encoding="utf-8")
+        monkeypatch.setenv("ARTHA_DATA_DIR", str(blocker / "data"))
         alert("still must not raise")
 
     def test_freeze_records_a_critical_alert(

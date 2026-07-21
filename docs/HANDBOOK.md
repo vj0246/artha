@@ -331,7 +331,12 @@ agent proposer, news scoring; optional).
     to alerts.jsonl first and the dashboard pins a health banner. If
     you add a new alarm, raise it through safety.alert() — never a bare
     print — or it will be invisible.
-11. The most expensive failure here is SILENCE, not error: a daily
+11. CI runs ubuntu-latest; development is Windows. Platform-specific
+    test tricks WILL pass locally and fail in CI — e.g. an env value
+    containing a NUL byte is accepted by Windows `setenv` but rejected
+    outright by POSIX (this bit us in Track G). To simulate an
+    unwritable path portably, root it under a FILE instead.
+12. The most expensive failure here is SILENCE, not error: a daily
     cycle that never runs stalls the B1 clock for weeks before anyone
     notices. That is what run_heartbeat.py exists for; keep it
     scheduled, and remember a local watchdog cannot see "machine was
