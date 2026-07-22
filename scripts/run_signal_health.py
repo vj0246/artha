@@ -44,6 +44,28 @@ PRODUCTION_SHARPE = 1.018  # ADR 0008 post-hardening figure
 PRODUCTION_DAYS = 3456
 
 
+def robust_rescale(features: pl.DataFrame, names: list[str]) -> pl.DataFrame:
+    """Re-standardize each feature per date by median and MAD, for drift only.
+
+    `build_features` standardizes cross-sectionally with mean and sd. Several
+    features are unbounded and heavily right-skewed by construction -
+    `dist_52w_low` is `close / 252d_low - 1`, so a single multi-bagger scores
+    a z near 19, inflates that day's sd, and squashes every other name toward
+    zero. PSI then reports a large "drift" that is one stock, not a regime.
+
+    Because the incoming column is already an affine per-date transform of the
+    raw feature, re-standardizing it by its own per-date median and MAD is
+    exactly the robust standardization of the raw value. The model's inputs
+    are untouched: this view exists only to make the monitor outlier-proof.
+    """
+    out = features
+    for n in names:
+        med = pl.col(n).median().over("trade_date")
+        mad = (pl.col(n) - med).abs().median().over("trade_date")
+        out = out.with_columns(((pl.col(n) - med) / (mad + 1e-9)).alias(n))
+    return out
+
+
 def psi(reference: np.ndarray, current: np.ndarray) -> float:
     """Population stability index over decile bins of the reference."""
     edges = np.quantile(reference, np.linspace(0, 1, PSI_BINS + 1))
@@ -94,6 +116,7 @@ def main() -> int:
     decay_alert = len(recent) == DECAY_RUN and all(x < 0 for x in recent) and ic252 < 0
 
     features, names = build_features(universe.filter(pl.col("in_universe")))
+    features = robust_rescale(features, names)
     dates = sorted(features["trade_date"].unique().to_list())
     cur_dates = set(dates[-21:])
     ref_dates = set(dates[-273:-21])
