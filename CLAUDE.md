@@ -21,6 +21,19 @@
 - Scheduled tasks: artha-daily 19:00, artha-heartbeat 21:00,
   artha-weekly SAT 10:00, artha-monthly 1st 10:00, artha-quarterly.
   Laptop must be ON at 19:00 (and 21:00 for the heartbeat to fire).
+  REGISTER ONLY VIA `scripts/register_tasks.ps1` — never `schtasks /TR`.
+  2026-07-22: all five tasks had been silently broken since registration.
+  The shell stripped the quotes around a repo path containing spaces, so
+  Windows stored Execute=`...\Desktop\Personal` + Arguments=`Projects\...`
+  and every run failed 0x80070002 while the task still displayed "Ready".
+  The heartbeat's staleness alarm is what caught it (68h no cycle).
+  Run the script ELEVATED for the S4U principal; unelevated it falls back
+  to Interactive (works only while logged in). A long cycle launched by
+  hand into a transient console can die 0xC000013A — start the B1 clock
+  with a direct `uv run` instead, not `schtasks /Run`.
+- B1 clock STARTED 2026-07-22: first dry_run=false paper session is
+  trade_date 2026-07-21, 25 positions, reconcile_ok, 0 rejects. Day 1/30.
+- Open signal-health warning: dist_52w_low PSI 0.61 > 0.25 (feature drift).
 - Track H (RL, ADR 0013): RL is CONTROL not prediction here. H1 null —
   LinUCB tau control ties the fixed constant, PBO 0.93, flat objective
   surface. H2 live — research agent learns idea-family value from the

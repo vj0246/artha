@@ -36,6 +36,81 @@ def _latest(reports: Path, pattern: str) -> dict:
     return json.loads(files[-1].read_text(encoding="utf-8"))
 
 
+def _metrics(rets: np.ndarray, dates: list, tri: dict) -> dict:
+    """Risk, distribution and benchmark-relative stats from the daily net series.
+
+    Everything here is derived from the same `net_return` column the backtest
+    reports, so the page can never drift from the study that produced it.
+    """
+    ann = 252.0
+    mu, sd = float(rets.mean()), float(rets.std(ddof=1))
+    downside = rets[rets < 0]
+    dsd = float(downside.std(ddof=1)) if downside.size > 1 else 0.0
+
+    curve = np.cumprod(1 + rets)
+    peak = np.maximum.accumulate(curve)
+    dd = curve / peak - 1
+    max_dd = float(dd.min())
+    cagr = float(curve[-1] ** (ann / len(rets)) - 1)
+
+    # longest stretch below a prior peak, in trading days
+    under, longest = 0, 0
+    for x in dd:
+        under = under + 1 if x < -1e-12 else 0
+        longest = max(longest, under)
+
+    # benchmark daily returns aligned to the same dates
+    bser = [tri.get(d) for d in dates]
+    pairs = [
+        (r, bser[i] / bser[i - 1] - 1)
+        for i, r in enumerate(rets)
+        if i and bser[i] is not None and bser[i - 1] is not None
+    ]
+    sr = np.array([p[0] for p in pairs])
+    br = np.array([p[1] for p in pairs])
+    cov = float(np.cov(sr, br)[0, 1])
+    bvar = float(br.var(ddof=1))
+    beta = cov / bvar if bvar else 0.0
+    active = sr - br
+    te = float(active.std(ddof=1))
+
+    # monthly buckets for win rate / best / worst
+    monthly: dict = collections.defaultdict(float)
+    for d, r in zip(dates, rets, strict=True):
+        monthly[(d.year, d.month)] = (1 + monthly[(d.year, d.month)]) * (1 + float(r)) - 1
+    mv = np.array(list(monthly.values()))
+
+    up, dn = br > 0, br < 0
+
+    def pct(x: float) -> float:
+        return round(x * 100, 1)
+
+    return {
+        "cagr": pct(cagr),
+        "vol": pct(sd * np.sqrt(ann)),
+        "sharpe": round(mu / sd * np.sqrt(ann), 2) if sd else 0.0,
+        "sortino": round(mu / dsd * np.sqrt(ann), 2) if dsd else 0.0,
+        "calmar": round(cagr / abs(max_dd), 2) if max_dd else 0.0,
+        "max_dd": pct(max_dd),
+        "underwater_days": longest,
+        "beta": round(beta, 2),
+        "alpha": pct(float(sr.mean() - beta * br.mean()) * ann),
+        "tracking_error": pct(te * np.sqrt(ann)),
+        "info_ratio": round(float(active.mean()) / te * np.sqrt(ann), 2) if te else 0.0,
+        "correlation": round(float(np.corrcoef(sr, br)[0, 1]), 2),
+        "up_capture": round(float(sr[up].mean() / br[up].mean()), 2) if up.any() else 0.0,
+        "down_capture": round(float(sr[dn].mean() / br[dn].mean()), 2) if dn.any() else 0.0,
+        "monthly_win_rate": pct(float((mv > 0).mean())),
+        "best_month": pct(float(mv.max())),
+        "worst_month": pct(float(mv.min())),
+        "daily_skew": round(float(((rets - mu) ** 3).mean() / sd**3), 2) if sd else 0.0,
+        "var95": pct(float(np.percentile(rets, 5))),
+        "cvar95": pct(float(rets[rets <= np.percentile(rets, 5)].mean())),
+        "n_days": len(rets),
+        "n_months": len(mv),
+    }
+
+
 def collect() -> dict:
     settings = load_settings()
     reports, curated = settings.reports_dir, settings.curated_dir
@@ -83,6 +158,8 @@ def collect() -> dict:
             ]
         )
     out["rolling_sharpe"] = rolling
+
+    out["metrics"] = _metrics(rets, dates, tri)
 
     sizing = _latest(reports, "live_readiness_*.json")["sizing"]["levels"]
     out["sizing"] = [

@@ -1,650 +1,714 @@
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
+<title>Artha — systematic equity trading, NSE</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Artha — a quant system that knows when it's been fooled</title>
-<meta name="description" content="A systematic equity trading system for Indian markets: researched, validated and operated on zero paid data — and honest about the seven things that didn't work.">
-<style>
-  :root{
-    color-scheme:light;
-    --page:#f9f9f7; --surface:#fcfcfb; --raised:#fff;
-    --ink:#0b0b0b; --ink2:#52514e; --muted:#898781;
-    --grid:#e1e0d9; --line:#c3c2b7; --ring:rgba(11,11,11,.10);
-    --s1:#2a78d6; --s2:#008300; --s3:#e87ba4; --s4:#eda100;
-    --good:#0ca30c; --crit:#d03b3b;
-  }
-  @media (prefers-color-scheme:dark){:root{
-    color-scheme:dark;
-    --page:#0d0d0d; --surface:#1a1a19; --raised:#212120;
-    --ink:#fff; --ink2:#c3c2b7; --muted:#898781;
-    --grid:#2c2c2a; --line:#383835; --ring:rgba(255,255,255,.10);
-    --s1:#3987e5; --s2:#008300; --s3:#d55181; --s4:#c98500;
-    --good:#0ca30c; --crit:#e66767;
-  }}
-  *{box-sizing:border-box;margin:0}
-  html{scroll-behavior:smooth}
-  body{font:16px/1.65 system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--ink);
-       background:var(--page);-webkit-font-smoothing:antialiased}
-  .wrap{max-width:1000px;margin:auto;padding:0 1.3rem}
-  section{padding:3.6rem 0;border-bottom:1px solid var(--grid)}
-  section:last-of-type{border-bottom:0}
-  h1{font-size:clamp(2rem,5.5vw,3.4rem);line-height:1.06;letter-spacing:-.035em;font-weight:700}
-  h2{font-size:clamp(1.35rem,3vw,1.85rem);letter-spacing:-.02em;font-weight:650;margin-bottom:.35rem}
-  h3{font-size:1rem;font-weight:650;margin-bottom:.25rem}
-  p{margin:.75rem 0;color:var(--ink2);max-width:70ch}
-  .lede{font-size:clamp(1.05rem,2.1vw,1.24rem);color:var(--ink);max-width:62ch}
-  .kicker{font-size:.78rem;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);font-weight:650}
-  a{color:var(--s1);text-decoration-thickness:1px;text-underline-offset:2px}
-  nav{position:sticky;top:0;z-index:20;background:color-mix(in oklab,var(--page) 88%,transparent);
-      backdrop-filter:blur(10px);border-bottom:1px solid var(--grid)}
-  nav .wrap{display:flex;gap:1.3rem;align-items:center;padding-top:.7rem;padding-bottom:.7rem;
-            overflow-x:auto;font-size:.85rem}
-  nav b{color:var(--ink);letter-spacing:-.02em}
-  nav a{color:var(--ink2);text-decoration:none;white-space:nowrap}
-  nav a:hover{color:var(--ink)}
-  header{padding:4rem 0 3rem}
-  .badge{display:inline-flex;gap:.5rem;align-items:center;font-size:.78rem;color:var(--ink2);
-         border:1px solid var(--ring);border-radius:999px;padding:.28rem .85rem;background:var(--surface)}
-  .dot{width:7px;height:7px;border-radius:50%;background:var(--good);animation:p 2.4s infinite}
-  @keyframes p{0%,100%{opacity:1}50%{opacity:.25}}
-  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));gap:.8rem;margin-top:2.3rem}
-  .stat{background:var(--surface);border:1px solid var(--ring);border-radius:14px;padding:1.05rem 1.15rem}
-  .stat b{display:block;font-size:1.8rem;letter-spacing:-.035em;line-height:1.1}
-  .stat span{font-size:.75rem;color:var(--muted);display:block;margin-top:.2rem}
-  .stat em{font-style:normal;font-size:.75rem;color:var(--ink2);display:block;margin-top:.25rem}
-  .cards{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:1.6rem}
-  @media(max-width:780px){.cards{grid-template-columns:1fr}}
-  .card{background:var(--surface);border:1px solid var(--ring);border-radius:14px;padding:1.2rem 1.35rem}
-  .card p{margin:.5rem 0 0;font-size:.94rem}
-  figure{margin:1.5rem 0 0;background:var(--surface);border:1px solid var(--ring);
-         border-radius:14px;padding:1.2rem 1.25rem;position:relative}
-  figcaption{font-size:.83rem;color:var(--muted);margin-top:.75rem;max-width:76ch}
-  .figtitle{font-weight:600;font-size:.97rem;color:var(--ink)}
-  .figsub{font-size:.83rem;color:var(--muted);margin-bottom:.4rem}
-  svg{display:block;width:100%;height:auto;overflow:visible}
-  svg text{font:11px system-ui,sans-serif;fill:var(--muted)}
-  svg .val{fill:var(--ink);font-weight:650;font-size:11.5px}
-  svg .lab{fill:var(--ink2);font-size:11.5px}
-  .legend{display:flex;gap:1.2rem;font-size:.82rem;color:var(--ink2);margin-top:.65rem;flex-wrap:wrap}
-  .legend i{display:inline-block;width:13px;height:3px;border-radius:2px;margin-right:.4rem;vertical-align:3px}
-  .legend i.sq{height:11px;width:11px;border-radius:3px;vertical-align:-1px}
-  .tip{position:absolute;pointer-events:none;display:none;z-index:9;background:var(--raised);
-       border:1px solid var(--ring);border-radius:9px;padding:.5rem .65rem;font-size:.8rem;
-       box-shadow:0 6px 20px rgba(0,0,0,.14);min-width:150px}
-  .tip .d{color:var(--muted);font-size:.74rem;margin-bottom:.25rem}
-  .tip .r{display:flex;align-items:center;gap:.5rem}
-  .tip .k{width:13px;height:3px;border-radius:2px}
-  .tip .v{margin-left:auto;font-weight:650;font-variant-numeric:tabular-nums}
-  .filters{display:flex;gap:.4rem;margin:.2rem 0 .9rem;flex-wrap:wrap}
-  .filters button{font:inherit;font-size:.79rem;color:var(--ink2);background:var(--raised);
-    border:1px solid var(--ring);border-radius:8px;padding:.26rem .75rem;cursor:pointer}
-  .filters button[aria-pressed="true"]{color:var(--ink);font-weight:650;border-color:var(--ink2)}
-  table{width:100%;border-collapse:collapse;font-size:.9rem;margin-top:.9rem}
-  th,td{text-align:right;padding:.5rem .6rem;border-bottom:1px solid var(--grid);
-        font-variant-numeric:tabular-nums}
-  th{color:var(--muted);font-weight:550;font-size:.79rem}
-  th:first-child,td:first-child{text-align:left}
-  tr.hl td{font-weight:650;color:var(--ink)}
-  .tblwrap{overflow-x:auto}
-  details{margin-top:.8rem}
-  summary{cursor:pointer;color:var(--muted);font-size:.83rem}
-  .callout{border-left:3px solid var(--s1);background:var(--surface);border-radius:0 12px 12px 0;
-           padding:1rem 1.25rem;margin:1.4rem 0}
-  .callout.warn{border-left-color:var(--s4)}
-  .callout p{margin:.35rem 0}.callout p:first-child{margin-top:0}
-  ol.nulls{margin:1.2rem 0 0;padding:0;list-style:none;counter-reset:n}
-  ol.nulls li{counter-increment:n;position:relative;padding:.7rem 0 .7rem 2.7rem;
-              border-bottom:1px solid var(--grid);color:var(--ink2);font-size:.95rem}
-  ol.nulls li:last-child{border-bottom:0}
-  ol.nulls li::before{content:counter(n);position:absolute;left:0;top:.66rem;width:1.75rem;height:1.75rem;
-    border-radius:50%;background:var(--surface);border:1px solid var(--ring);display:grid;
-    place-items:center;font-size:.76rem;color:var(--muted);font-weight:650}
-  ol.nulls b{color:var(--ink);font-weight:600}
-  .fixes{display:grid;gap:.7rem;margin-top:1.2rem}
-  .fix{background:var(--surface);border:1px solid var(--ring);border-radius:12px;padding:1rem 1.2rem}
-  .fix h3{font-size:.94rem}.fix p{font-size:.9rem;margin:.3rem 0 0}
-  .flow{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:.75rem;margin-top:1.3rem}
-  .step{background:var(--surface);border:1px solid var(--ring);border-radius:13px;padding:1rem 1.1rem}
-  .step .n{font-size:.72rem;color:var(--muted);letter-spacing:.1em;font-weight:650}
-  .step h3{margin:.25rem 0 .3rem;font-size:.95rem}.step p{font-size:.86rem;margin:0}
-  footer{padding:2.8rem 0 4rem;color:var(--muted);font-size:.87rem}
-  footer a{color:var(--ink2)}
-  .links{display:flex;gap:1.15rem;flex-wrap:wrap;margin-top:.85rem}
-</style>
-</head>
-<body>
+<meta name="description" content="A systematic NSE equity trading system, validated against its own trial ledger. Results, nulls, and the look-ahead finding.">
 
-<nav><div class="wrap">
-  <b>Artha</b>
-  <a href="#results">Results</a>
-  <a href="#lookahead">The finding</a>
-  <a href="#nulls">Seven nulls</a>
-  <a href="#wrong">Being wrong</a>
-  <a href="#engineering">Engineering</a>
-  <a href="https://github.com/vj0246/artha">GitHub &#8599;</a>
+<style>
+:root{
+  --bg:#fcfcfb; --panel:#ffffff; --line:#e6e5e0; --line-soft:#f0efeb;
+  --ink:#16161a; --ink-2:#55554e; --ink-3:#86867c;
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100;
+  --good:#00701f; --bad:#c02a28; --warn:#8a6100;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;
+  --r:10px;
+}
+@media (prefers-color-scheme:dark){
+  :root:where(:not([data-theme="light"])){
+    color-scheme:dark;
+    --bg:#131316; --panel:#1a1a1e; --line:#2c2c32; --line-soft:#232329;
+    --ink:#ffffff; --ink-2:#b9b9b0; --ink-3:#83837b;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500;
+    --good:#3fb950; --bad:#f0776c; --warn:#d3a12b;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#131316; --panel:#1a1a1e; --line:#2c2c32; --line-soft:#232329;
+  --ink:#ffffff; --ink-2:#b9b9b0; --ink-3:#83837b;
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500;
+  --good:#3fb950; --bad:#f0776c; --warn:#d3a12b;
+}
+
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+  -webkit-font-smoothing:antialiased;line-height:1.5}
+.wrap{max-width:1180px;margin:0 auto;padding:0 24px}
+a{color:inherit}
+h1,h2,h3{margin:0;letter-spacing:-.02em;font-weight:640}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+
+nav{position:sticky;top:0;z-index:50;background:color-mix(in srgb,var(--bg) 88%,transparent);
+  backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.nav{display:flex;align-items:center;gap:20px;height:56px}
+.brand{font-weight:700;letter-spacing:.14em;font-size:13px}
+.nav ul{display:flex;gap:18px;list-style:none;margin:0;padding:0;flex:1;overflow-x:auto;
+  scrollbar-width:none}
+.nav ul::-webkit-scrollbar{display:none}
+.nav a{text-decoration:none;color:var(--ink-3);font-size:13px;white-space:nowrap;padding:4px 0;
+  border-bottom:2px solid transparent}
+.nav a:hover{color:var(--ink)}
+.nav a.on{color:var(--ink);border-bottom-color:var(--s1)}
+.iconbtn{background:none;border:1px solid var(--line);color:var(--ink-2);border-radius:8px;
+  height:32px;padding:0 10px;cursor:pointer;font-size:13px;font-family:inherit}
+.iconbtn:hover{color:var(--ink);border-color:var(--ink-3)}
+
+header{padding:64px 0 28px}
+.eyebrow{font-size:11px;letter-spacing:.18em;color:var(--ink-3);text-transform:uppercase;
+  font-family:var(--mono)}
+h1{font-size:clamp(38px,6.4vw,68px);line-height:1.02;margin:14px 0 0;max-width:15ch}
+.lede{color:var(--ink-2);font-size:17px;margin:16px 0 0;max-width:52ch}
+
+.hero-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;margin:40px 0 0;
+  background:var(--line);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.hs{background:var(--panel);padding:20px 18px}
+.hs .k{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);
+  font-family:var(--mono)}
+.hs .v{font-size:clamp(30px,4.4vw,42px);font-weight:660;margin-top:8px;line-height:1}
+.hs .c{font-size:12px;color:var(--ink-2);margin-top:8px}
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-family:var(--mono);
+  padding:2px 7px;border-radius:20px;border:1px solid var(--line);color:var(--ink-2)}
+.chip.up{color:var(--good);border-color:color-mix(in srgb,var(--good) 40%,transparent)}
+.chip.dn{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 40%,transparent)}
+.chip.nt{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 40%,transparent)}
+
+section{padding:56px 0;border-top:1px solid var(--line-soft)}
+.shead{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;
+  flex-wrap:wrap;margin-bottom:22px}
+.shead h2{font-size:clamp(22px,2.6vw,29px);max-width:22ch}
+.shead p{margin:7px 0 0;color:var(--ink-2);font-size:14px;max-width:58ch}
+.tag{font-family:var(--mono);font-size:11px;letter-spacing:.1em;color:var(--ink-3);
+  text-transform:uppercase}
+
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:18px}
+.figtitle{display:flex;align-items:baseline;justify-content:space-between;gap:12px;
+  flex-wrap:wrap;margin-bottom:2px}
+.figtitle h3{font-size:15px}
+.figsub{color:var(--ink-3);font-size:12.5px;margin:2px 0 12px}
+
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12.5px;color:var(--ink-2)}
+.legend i{width:11px;height:11px;border-radius:3px;display:inline-block;margin-right:6px;
+  vertical-align:-1px}
+
+.ctl{display:flex;gap:6px}
+.ctl button{background:none;border:1px solid var(--line);color:var(--ink-3);border-radius:7px;
+  padding:4px 10px;font-size:12px;cursor:pointer;font-family:var(--mono)}
+.ctl button:hover{color:var(--ink)}
+.ctl button.on{background:var(--s1);border-color:var(--s1);color:#fff}
+
+svg{display:block;width:100%;height:auto}
+.gridline{stroke:var(--line-soft);stroke-width:1}
+.axis{fill:var(--ink-3);font-size:11px;font-family:var(--mono)}
+.zero{stroke:var(--ink-3);stroke-width:1;stroke-dasharray:3 3;opacity:.6}
+.refline{stroke:var(--ink-3);stroke-width:1;stroke-dasharray:4 4;opacity:.75}
+
+.tip{position:fixed;pointer-events:none;z-index:99;background:var(--panel);
+  border:1px solid var(--line);border-radius:8px;padding:9px 11px;font-size:12.5px;
+  box-shadow:0 8px 26px rgba(0,0,0,.16);opacity:0;transition:opacity .1s;min-width:150px}
+.tip .d{color:var(--ink-3);font-family:var(--mono);font-size:11px;margin-bottom:6px}
+.tip .row{display:flex;justify-content:space-between;gap:16px;margin-top:3px}
+.tip .row b{font-family:var(--mono);font-weight:600}
+
+.groups{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.grp{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.grp h4{margin:0;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);
+  font-family:var(--mono);padding:13px 15px;border-bottom:1px solid var(--line-soft)}
+.m{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:9px 15px;
+  border-bottom:1px solid var(--line-soft)}
+.m:last-child{border-bottom:0}
+.m span{font-size:12.5px;color:var(--ink-2)}
+.m b{font-size:15px;font-weight:620}
+
+.split{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);
+  border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.half{background:var(--panel);padding:26px 22px}
+.half .k{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase}
+.half .big{font-size:clamp(44px,7vw,72px);font-weight:680;line-height:1;margin:12px 0 6px}
+.half .sub{font-size:13px;color:var(--ink-2)}
+.half.leak .k,.half.leak .big{color:var(--bad)}
+.half.true .k,.half.true .big{color:var(--good)}
+
+.nulls{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.null{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px;
+  display:flex;flex-direction:column;gap:8px}
+.null .stat{font-family:var(--mono);font-size:19px;font-weight:640;color:var(--bad)}
+.null .ttl{font-size:13.5px;font-weight:620;line-height:1.3}
+.null .why{font-size:12.5px;color:var(--ink-2);line-height:1.45}
+
+.ops{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+.op{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px}
+.op .t{font-family:var(--mono);font-size:12px;color:var(--s1);font-weight:600}
+.op .n{font-size:13px;font-weight:600;margin-top:6px}
+.op .d{font-size:12px;color:var(--ink-2);margin-top:4px;line-height:1.4}
+
+details{margin-top:12px;border-top:1px solid var(--line-soft);padding-top:10px}
+summary{cursor:pointer;font-size:12.5px;color:var(--ink-3);font-family:var(--mono)}
+summary:hover{color:var(--ink)}
+.scroll{overflow-x:auto;margin-top:10px}
+table{border-collapse:collapse;width:100%;font-size:12.5px;min-width:420px}
+th,td{text-align:right;padding:7px 10px;border-bottom:1px solid var(--line-soft);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+th{color:var(--ink-3);font-weight:600;font-family:var(--mono);font-size:11px;
+  text-transform:uppercase;letter-spacing:.06em}
+td.num{font-family:var(--mono)}
+
+footer{border-top:1px solid var(--line);padding:34px 0 60px;color:var(--ink-3);font-size:13px}
+.flinks{display:flex;gap:18px;flex-wrap:wrap;margin-bottom:14px}
+.flinks a{color:var(--ink-2);text-decoration:none;border-bottom:1px solid var(--line)}
+.flinks a:hover{color:var(--ink)}
+
+@media(max-width:900px){
+  .hero-stats,.groups,.nulls{grid-template-columns:repeat(2,1fr)}
+  .ops{grid-template-columns:repeat(2,1fr)}
+}
+@media(max-width:620px){
+  .split,.nulls,.groups,.ops{grid-template-columns:1fr}
+  header{padding:40px 0 20px}
+}
+</style>
+
+<nav><div class="wrap nav">
+  <span class="brand">ARTHA</span>
+  <ul>
+    <li><a href="#perf">Performance</a></li>
+    <li><a href="#metrics">Metrics</a></li>
+    <li><a href="#finding">The finding</a></li>
+    <li><a href="#nulls">Nulls</a></li>
+    <li><a href="#build">Construction</a></li>
+    <li><a href="#proof">Proof</a></li>
+    <li><a href="#ops">Ops</a></li>
+  </ul>
+  <button class="iconbtn" id="theme" aria-label="Toggle theme">&#9686;</button>
+  <a class="iconbtn" href="https://github.com/vj0246/artha"
+     style="line-height:30px;text-decoration:none">Code</a>
 </div></nav>
 
-<div class="wrap">
+<header class="wrap">
+  <div class="eyebrow">NSE cash equities &middot; 2012&ndash;2026 &middot; net of all costs</div>
+  <h1>Proof beats performance.</h1>
+  <p class="lede">A systematic trading system for Indian equities, built so its own
+  results cannot lie to it. Every number below is regenerated from the study that
+  produced it.</p>
 
-<header>
-  <span class="badge"><span class="dot"></span>trading paper daily &middot; 243 tests green &middot; 108 experiments counted</span>
-  <h1 style="margin-top:1.2rem">A quant system that knows<br>when it's been fooled.</h1>
-  <p class="lede" style="margin-top:1.1rem">Artha researches, validates and <em>operates</em> a
-  systematic equity strategy on India's NSE — built entirely on free exchange data. Its most
-  valuable output isn't the strategy. It's the seven things it proved don't work, including one
-  an entire literature believes does.</p>
-  <div class="stats">
-    <div class="stat"><b>1.02</b><span>net Sharpe, live config</span><em>index: 0.94</em></div>
-    <div class="stat"><b>0.20</b><span>deflated Sharpe</span><em>after counting 108 trials</em></div>
-    <div class="stat"><b>7</b><span>published nulls</span><em>the real contribution</em></div>
-    <div class="stat"><b>&#8377;0</b><span>spent on data</span><em>primary sources only</em></div>
+  <div class="hero-stats">
+    <div class="hs"><div class="k">Sharpe</div><div class="v num" id="h-sharpe">&mdash;</div>
+      <div class="c"><span class="chip up">index 0.94</span></div></div>
+    <div class="hs"><div class="k">CAGR</div><div class="v num" id="h-cagr">&mdash;</div>
+      <div class="c"><span class="chip dn">index 14.97%</span></div></div>
+    <div class="hs"><div class="k">Max drawdown</div><div class="v num" id="h-dd">&mdash;</div>
+      <div class="c"><span class="chip up">index &minus;38%</span></div></div>
+    <div class="hs"><div class="k">Deflated Sharpe</div><div class="v num">0.20</div>
+      <div class="c"><span class="chip nt" id="h-trials">vs ledger</span></div></div>
   </div>
 </header>
 
-<section>
-  <span class="kicker">What it actually is</span>
-  <h2>Two explanations — take whichever fits</h2>
-  <div class="cards">
-    <div class="card">
-      <h3>If you've never traded</h3>
-      <p>Imagine a machine that reads every price on India's largest stock exchange each evening,
-      picks 25 companies to hold, places the orders, checks its own books, and messages you if
-      something looks wrong.</p>
-      <p>Now the hard part: proving the machine is <em>skilled</em> rather than lucky. Financial
-      data will happily hand you a beautiful answer that is completely false. Most of this project
-      is the proving.</p>
-    </div>
-    <div class="card">
-      <h3>If you trade</h3>
-      <p>Point-in-time NSE panel from primary bhavcopy plus the declared corporate-action feed
-      (delistings retained, factors verified against ex-day prices <em>both ways</em>). Weekly
-      cross-sectional momentum through Ledoit-Wolf min-variance construction with
-      Gârleanu-Pedersen partial adjustment, vol targeting, ADV caps, T+1-close execution, full
-      Indian cost stack.</p>
-      <p>Validation: purged walk-forward + CPCV, deflated Sharpe against an append-only trial
-      ledger, White Reality Check and Hansen SPA. Backtest/engine parity is a CI gate.</p>
-    </div>
+<main class="wrap">
+
+<section id="perf">
+  <div class="shead">
+    <div><h2>It earns less than the index, and takes far less risk doing it.</h2>
+      <p>That trade is the entire thesis. Lower raw return, materially shallower
+      drawdown, higher risk-adjusted return.</p></div>
+    <div class="ctl" id="range"></div>
   </div>
-</section>
 
-<section id="results">
-  <span class="kicker">Results</span>
-  <h2>Fourteen years, stated the way the project states them</h2>
-  <p>Every number below is net of the complete Indian cost stack — securities transaction tax,
-  stamp duty, exchange fees, GST, the flat per-scrip depository charge, and square-root market
-  impact. Charts are generated from the repository's own result files.</p>
-
-  <figure>
-    <div class="figtitle">Growth of &#8377;100 — the strategy against the market it trades in</div>
-    <div class="figsub">Both indexed to 100 at August 2012. Hover for values.</div>
-    <div class="filters" id="eqf" role="group" aria-label="date range">
-      <button data-y="3">3Y</button><button data-y="5">5Y</button>
-      <button data-y="10">10Y</button><button data-y="0" aria-pressed="true">All</button>
-    </div>
+  <div class="card">
+    <div class="figtitle"><h3>Growth of &#8377;100</h3>
+      <div class="legend">
+        <span><i style="background:var(--s1)"></i>Artha</span>
+        <span><i style="background:var(--s2)"></i>NIFTY 500 TRI</span>
+      </div></div>
+    <div class="figsub">Net of STT, stamp, exchange, GST, DP charges and modelled impact.</div>
     <div id="c-equity"></div>
-    <div class="legend">
-      <span><i style="background:var(--s1)"></i>Artha (live config)</span>
-      <span><i style="background:var(--s3)"></i>NIFTY 500 total return</span>
-    </div>
-    <figcaption><b>Read this honestly:</b> the strategy finishes <em>below</em> the index in raw
-    terms. That is not a bug being hidden — it is the trade being made. The next chart shows what
-    was bought with that give-up.</figcaption>
-    <details><summary>show the data</summary><div class="tblwrap"><table id="t-equity"></table></div></details>
-  </figure>
+    <details><summary>Table view</summary><div class="scroll" id="t-equity"></div></details>
+  </div>
 
-  <figure>
-    <div class="figtitle">Drawdown — how far underwater, and for how long</div>
-    <div class="figsub">The reason the Sharpe ratios differ. Closer to zero is calmer.</div>
+  <div class="card" style="margin-top:16px">
+    <div class="figtitle"><h3>Drawdown</h3>
+      <div class="legend">
+        <span><i style="background:var(--s1)"></i>Artha</span>
+        <span><i style="background:var(--s2)"></i>NIFTY 500 TRI</span>
+      </div></div>
+    <div class="figsub">What the lower return bought: a shallower hole, and less time in it.</div>
     <div id="c-dd"></div>
-    <div class="legend">
-      <span><i class="sq" style="background:var(--s1)"></i>Artha</span>
-      <span><i class="sq" style="background:var(--s3)"></i>NIFTY 500</span>
-    </div>
-    <figcaption>The index fell ~38% at its worst; the strategy ~28%, and it spends far less time
-    deeply underwater. Give up some upside, keep more of your sleep — and, crucially, stay solvent
-    enough to still be trading when the recovery arrives.</figcaption>
-  </figure>
+  </div>
+</section>
 
-  <figure>
-    <div class="figtitle">Rolling one-year Sharpe — is the edge stable, or was it one good year?</div>
-    <div class="figsub">Each point uses the trailing 252 trading days.</div>
+<section id="metrics">
+  <div class="shead"><div><h2>The full ledger of behaviour</h2>
+    <p>Including the numbers that do not flatter it.</p></div>
+    <span class="tag" id="m-span">&mdash;</span></div>
+  <div class="groups">
+    <div class="grp"><h4>Return</h4><div id="g-return"></div></div>
+    <div class="grp"><h4>Risk</h4><div id="g-risk"></div></div>
+    <div class="grp"><h4>vs Index</h4><div id="g-rel"></div></div>
+    <div class="grp"><h4>Distribution</h4><div id="g-dist"></div></div>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <div class="figtitle"><h3>Rolling 1-year Sharpe</h3></div>
+    <div class="figsub">It goes negative. A line that never dipped would mean a bug,
+    not a strategy.</div>
     <div id="c-roll"></div>
-    <figcaption>Positive in most windows, negative in several — which is what an honest equity
-    strategy looks like. A line that never dipped below zero would be evidence of a bug, not of
-    skill.</figcaption>
-  </figure>
-
-  <div class="tblwrap">
-  <table>
-    <tr><th>Portfolio</th><th>CAGR</th><th>Sharpe</th><th>Max drawdown</th><th>Turnover</th></tr>
-    <tr class="hl"><td>Min-var + &tau;0.5 — the live config</td><td>13.7%</td><td>1.02</td><td>&minus;28%</td><td>4.2&times;</td></tr>
-    <tr><td>Equal-weight + no-trade bands</td><td>12.8%</td><td>0.96</td><td>&minus;27%</td><td>5.2&times;</td></tr>
-    <tr><td>Naive momentum 12-1</td><td>23.6%</td><td>0.96</td><td>&minus;49%</td><td>—</td></tr>
-    <tr><td>NIFTY 500 (synthetic total return)</td><td>14.97%</td><td>0.94</td><td>&minus;38%</td><td>—</td></tr>
-  </table>
   </div>
-
-  <div class="callout warn">
-    <p><b>The honest reading.</b> The live book earns <em>less raw return</em> than the index at
-    <em>lower volatility</em> — which is why its Sharpe is higher. It is a risk-adjusted win, not a
-    return win. After Indian short-term capital-gains tax the CAGR is 11.0%.</p>
-    <p>And deflated against all 108 experiments in the trial ledger, that Sharpe's statistical
-    significance is <b>0.20</b> — economically attractive, statistically unproven, and reported
-    exactly that way everywhere in the repository.</p>
-    <p>Most projects report the best figure they found. This one reports the figure that survives
-    being counted.</p>
-  </div>
-
-  <figure>
-    <div class="figtitle">Portfolio construction is worth more than signal hunting</div>
-    <div class="figsub">Identical stock picks, eight different ways of holding them. Hover any bar.</div>
-    <div id="c-constr"></div>
-    <figcaption>Same momentum signal throughout — only the weighting scheme and trading rule
-    change. The spread from worst to best packaging is roughly 0.08 Sharpe, achieved without a
-    single new prediction.</figcaption>
-  </figure>
 </section>
 
-<section id="lookahead">
-  <span class="kicker">The headline finding</span>
-  <h2>A popular class of forecasting papers is measuring look-ahead</h2>
-  <p>A large applied literature reports spectacular daily equity forecasting after
-  <em>decomposition preprocessing</em> — EMD, CEEMDAN, wavelet hybrids. Information coefficients
-  above 0.3, Sharpe ratios above 3.</p>
-  <p>We reproduced those numbers exactly. Then we changed one thing: instead of decomposing the
-  entire price history at once, we recomputed the identical transform <em>causally</em> — at each
-  day using only data available up to that day, which is the only version anyone could ever
-  actually trade.</p>
-
-  <figure>
-    <div class="figtitle">Net Sharpe by preprocessing method — same data, same model, same costs</div>
-    <div class="figsub">The only difference is whether the transform was allowed to see the future.</div>
-    <div id="c-leak"></div>
-    <div class="legend">
-      <span><i class="sq" style="background:var(--crit)"></i>uses future data (as published)</span>
-      <span><i class="sq" style="background:var(--s2)"></i>causal — actually tradeable</span>
-    </div>
-    <figcaption>Sharpe 3.62 collapses to 0.22. The leaky-minus-causal gap <em>is</em> the published
-    result — every "training" sample had silently become a function of future prices.</figcaption>
-  </figure>
-
-  <p>Written up as a working paper in the repository, with the reproduction code. The general
-  lesson is mechanical, not statistical: <b>any global transform applied before a temporal split
-  converts test-set information into training features</b> — decomposition, full-series scaling,
-  PCA, imputation. The defence is equally mechanical: recompute every transform inside the
-  information set available at each decision time, and let the leaky-minus-causal gap measure what
-  the shortcut was worth.</p>
-</section>
-
-<section>
-  <span class="kicker">More evidence</span>
-  <h2>Two more charts that changed decisions</h2>
-
-  <figure>
-    <div class="figtitle">The model zoo versus simply holding the stock</div>
-    <div class="figsub">ICICI Bank, daily horizon, net of per-side costs. Dashed line is buy-and-hold.</div>
-    <div id="c-zoo"></div>
-    <figcaption>Ridge, gradient boosting, GRU, LSTM, a transformer and their ensemble — every one
-    below the always-long floor after costs, under both expanding and rolling retraining. The
-    failure mode is absence of signal, not stale parameters.</figcaption>
-  </figure>
-
-  <figure>
-    <div class="figtitle">How much money you need before the strategy works</div>
-    <div class="figsub">Net Sharpe by account size, with all small-account frictions charged.</div>
-    <div id="c-size"></div>
-    <figcaption>At &#8377;1 lakh the flat &#8377;15.34 depository charge is 38 bps per exit and one
-    share of a median-priced stock is a 5.2% position — the strategy is structurally broken before
-    alpha is even considered. Minimum viable capital was <em>measured</em>, not guessed:
-    &#8377;2 lakh, comfortable at &#8377;5 lakh.</figcaption>
-    <details><summary>show the data</summary><div class="tblwrap"><table id="t-size"></table></div></details>
-  </figure>
+<section id="finding">
+  <div class="shead"><div><h2>The headline result is a negative one</h2>
+    <p>A large literature reports Sharpe 3+ on daily equity forecasting after
+    EMD/CEEMDAN decomposition. We reproduced it exactly, then recomputed the
+    identical transform causally.</p></div>
+    <span class="tag">Working paper</span></div>
+  <div class="split">
+    <div class="half leak"><div class="k">Decompose first (as published)</div>
+      <div class="big num">3.62</div>
+      <div class="sub">Sharpe &middot; IC 0.41. The transform sees the whole series
+      before the train/test split.</div></div>
+    <div class="half true"><div class="k">Decompose causally (correct)</div>
+      <div class="big num">0.22</div>
+      <div class="sub">Sharpe &middot; IC &minus;0.04. Same model, same data, no future
+      information. The edge was the leak.</div></div>
+  </div>
 </section>
 
 <section id="nulls">
-  <span class="kicker">The real contribution</span>
-  <h2>Seven things that don't work</h2>
-  <p>Nulls are the expensive, useful output of research — and the ones nobody publishes.</p>
-  <ol class="nulls">
-    <li><b>Machine learning doesn't beat momentum.</b> Ridge, LightGBM, MLP and a transformer under
-    one purged protocol. PBO 0.86 — the in-sample winner is overfit 24 times out of 28 splits.</li>
-    <li><b>Post-earnings drift runs backwards in India.</b> 1.48M timestamped exchange
-    announcements; the biggest positive surprises <em>reverse</em> (t = &minus;6.9).</li>
-    <li><b>Momentum-crash regime gates add nothing</b> beyond the volatility targeting already
-    shipped.</li>
-    <li><b>The single-name model zoo loses to buy-and-hold</b> — see the chart above.</li>
-    <li><b>News sentiment gating subtracts value</b> (0.06 vs 0.58 Sharpe), consistent with the
-    inverted drift above.</li>
-    <li><b>EWMA covariance doesn't beat Ledoit-Wolf</b> — faster adaptation, paid for in churn.</li>
-    <li><b>A learned trading-speed policy ties the fixed constant.</b> A contextual bandit over 728
-    weekly decisions: PBO 0.93 and near-uniform action counts — the agent itself reporting that the
-    objective surface is flat and the analytical constant is already near-optimal.</li>
-  </ol>
+  <div class="shead"><div><h2>Seven things that did not work</h2>
+    <p>The expensive, useful output of research.</p></div></div>
+  <div class="nulls">
+    <div class="null"><div class="stat">PBO 0.86</div>
+      <div class="ttl">Machine learning loses to momentum</div>
+      <div class="why">Ridge, LightGBM, MLP, transformer. The in-sample winner is
+      overfit in 24 of 28 splits.</div></div>
+    <div class="null"><div class="stat">t = &minus;6.9</div>
+      <div class="ttl">Earnings drift runs backwards</div>
+      <div class="why">1.48M timestamped announcements. The biggest positive
+      surprises reverse.</div></div>
+    <div class="null"><div class="stat">+0.00</div>
+      <div class="ttl">Crash regime gates add nothing</div>
+      <div class="why">Beyond the volatility targeting already shipped.</div></div>
+    <div class="null"><div class="stat">&lt; 0.5&times;</div>
+      <div class="ttl">Model zoo loses to buy-and-hold</div>
+      <div class="why">GRU, LSTM, transformer, ensemble. Absence of signal, not
+      staleness.</div></div>
+    <div class="null"><div class="stat">0.06 vs 0.58</div>
+      <div class="ttl">News gating subtracts value</div>
+      <div class="why">Consistent with the inverted drift above.</div></div>
+    <div class="null"><div class="stat">churn</div>
+      <div class="ttl">EWMA loses to Ledoit-Wolf</div>
+      <div class="why">Faster adaptation, paid for in turnover.</div></div>
+    <div class="null"><div class="stat">PBO 0.93</div>
+      <div class="ttl">Learned trading speed ties a constant</div>
+      <div class="why">LinUCB over 728 decisions reports its own flat objective
+      surface.</div></div>
+    <div class="null" style="border-color:var(--s1)">
+      <div class="stat" style="color:var(--s1)">held</div>
+      <div class="ttl">A 1.30 Sharpe upgrade was refused</div>
+      <div class="why">Failed 2 of 4 pre-registered gates. The friendlier re-test
+      was deliberately not run.</div></div>
+  </div>
 </section>
 
-<section id="wrong">
-  <span class="kicker">Credibility</span>
-  <h2>Four times this project was wrong — in public</h2>
-  <p>A research system's credibility isn't how good its numbers look. It's what happens when they
-  turn out to be wrong.</p>
-  <div class="fixes">
-    <div class="fix"><h3>The data feed lied</h3>
-      <p>The exchange's declared corporate-action feed contained a 1:5 stock split that never
-      happened, manufacturing a <b>+398% phantom return</b>. The adjuster now verifies every
-      declared factor against the ex-day price and rejects contradictions — catching 14 phantom
-      events across sixteen years.</p></div>
-    <div class="fix"><h3>We caught ourselves inflating a headline</h3>
-      <p>A construction upgrade first measured Sharpe 1.119 with a &minus;21% drawdown. Our own code
-      review found a position-cap bug quietly parking money in cash — accidental de-risking.
-      Corrected to <b>1.018</b>. Both numbers stay in the record.</p></div>
-    <div class="fix"><h3>We corrected our own significance claim</h3>
-      <p>"The strategy family beats the index (p = 0.0415)" turned out to be carried by a naive
-      baseline inside that family. Across constructed configurations alone, <b>p = 0.655</b>. The
-      claim is now stated precisely: a risk-adjusted win, not a raw-return win.</p></div>
-    <div class="fix"><h3>A promising upgrade was refused</h3>
-      <p>A blended signal scored Sharpe 1.30 against the live 1.02 — then failed two of four
-      <em>pre-registered</em> gates. It was held, not shipped, and the friendlier re-test that
-      might have rescued it was deliberately never run.</p></div>
+<section id="build">
+  <div class="shead"><div><h2>Where the edge actually comes from</h2>
+    <p>Packaging, not prediction. Same signal, better construction.</p></div></div>
+  <div class="card">
+    <div class="figtitle"><h3>Construction ladder</h3><span class="tag">net Sharpe</span></div>
+    <div class="figsub">Eight configurations. The spread is earned without a single
+    new forecast.</div>
+    <div id="c-constr"></div>
+    <details><summary>Table view</summary><div class="scroll" id="t-constr"></div></details>
   </div>
 
-  <figure>
-    <div class="figtitle">The honesty counter — every experiment ever run</div>
-    <div class="figsub">Cumulative trials in the append-only ledger. Deflated Sharpe reads this number.</div>
+  <div class="card" style="margin-top:16px">
+    <div class="figtitle"><h3>Capital required</h3>
+      <span class="tag">net Sharpe by account size</span></div>
+    <div class="figsub">Flat DP charges and whole-share granularity make small
+    accounts structurally unviable.</div>
+    <div id="c-size"></div>
+    <details><summary>Table view</summary><div class="scroll" id="t-size"></div></details>
+  </div>
+</section>
+
+<section id="proof">
+  <div class="shead"><div><h2>Every experiment is counted against the result</h2>
+    <p>Search enough configurations and something looks brilliant by luck. The
+    ledger is append-only, so the deflated Sharpe can only get harder to clear.</p></div></div>
+  <div class="card">
+    <div class="figtitle"><h3>Cumulative trials in the ledger</h3>
+      <span class="tag" id="p-trials">&mdash;</span></div>
+    <div class="figsub">This curve is why the headline Sharpe deflates from 1.02 to 0.20.</div>
     <div id="c-ledger"></div>
-    <figcaption>Every configuration is recorded <em>before</em> its result is read. This is why the
-    headline Sharpe deflates from 1.02 to 0.20 — searching hard is allowed, but it has to be paid
-    for, and the ledger is the bill.</figcaption>
-  </figure>
+  </div>
+  <div class="card" style="margin-top:16px">
+    <div class="figtitle"><h3>Single-name model zoo</h3><span class="tag">net Sharpe</span></div>
+    <div class="figsub">Every model sits under the always-long floor after costs.</div>
+    <div id="c-zoo"></div>
+    <details><summary>Table view</summary><div class="scroll" id="t-zoo"></div></details>
+  </div>
 </section>
 
-<section id="engineering">
-  <span class="kicker">Engineering</span>
-  <h2>It runs itself, and watches itself</h2>
-  <div class="flow">
-    <div class="step"><span class="n">01</span><h3>Point-in-time data</h3>
-      <p>Immutable raw zone with sha256 manifests. Every delisted company retained — survivorship
-      bias measured at +2.5pp/yr of imaginary alpha.</p></div>
-    <div class="step"><span class="n">02</span><h3>Proving it isn't luck</h3>
-      <p>Purged CV, CPCV, PBO, deflated Sharpe, Reality Check/SPA — and a ledger that counts every
-      experiment, forever.</p></div>
-    <div class="step"><span class="n">03</span><h3>Trading it</h3>
-      <p>Backtest/engine parity enforced in CI. Deterministic order ids make a crashed rerun unable
-      to double-trade. Drawdown rails halve or freeze the book automatically.</p></div>
-    <div class="step"><span class="n">04</span><h3>Watching itself</h3>
-      <p>Signal-decay and feature-drift alarms daily. A heartbeat that fires on <em>silence</em> —
-      the failure that otherwise looks exactly like success.</p></div>
+<section id="ops">
+  <div class="shead"><div><h2>It runs itself, and alarms on silence</h2>
+    <p>An alert nobody receives is not an alert. Every alarm is written to disk
+    before any push channel is attempted.</p></div></div>
+  <div class="ops">
+    <div class="op"><div class="t">19:00 daily</div><div class="n">Trade</div>
+      <div class="d">Ingest, signal, orders, reconcile.</div></div>
+    <div class="op"><div class="t">21:00 daily</div><div class="n">Heartbeat</div>
+      <div class="d">Did any of that actually happen?</div></div>
+    <div class="op"><div class="t">Sat weekly</div><div class="n">Divergence</div>
+      <div class="d">Live versus research drift.</div></div>
+    <div class="op"><div class="t">Monthly</div><div class="n">Research agent</div>
+      <div class="d">Proposes and screens new features.</div></div>
+    <div class="op"><div class="t">Quarterly</div><div class="n">Re-validation</div>
+      <div class="d">The config must re-earn its seat.</div></div>
   </div>
-
-  <div class="callout">
-    <p><b>An alert nobody receives isn't an alert.</b> Every alarm is written durably to disk before
-    any push channel is attempted. Nothing auto-remediates — alarms inform, humans decide.</p>
-  </div>
-
-  <p>There's also a research agent that proposes new features, executes them inside an
-  AST-whitelisted sandbox (model output is never run unaudited), screens them under the standard
-  protocol, and keeps a posterior over which <em>kinds</em> of idea have historically paid off. It
-  has demonstrably changed its mind: after two negative liquidity screens, it reordered what it
-  tries next. Knowledge compounds; risk doesn't, because it never touches the live book.</p>
 </section>
 
-<footer>
-  <p><b style="color:var(--ink)">Artha</b> — built by VJ. Python, polars, uv, mypy --strict, 243
-  tests including a look-ahead suite and a backtest/live parity gate.</p>
-  <p style="font-size:.84rem">Limitations are disclosed, not hidden: synthetic TRI benchmark,
-  static sector map, cash at 0%, paper slippage degenerate until live quotes, and DSR 0.20 counted
-  conservatively. A limitation you disclose can't ambush you later.</p>
-  <div class="links">
-    <a href="https://github.com/vj0246/artha">Source on GitHub &#8594;</a>
-    <a href="https://github.com/vj0246/artha/blob/main/docs/research/PAPER_leaky_decomposition.md">The working paper &#8594;</a>
-    <a href="https://github.com/vj0246/artha/blob/main/docs/research/ARTHA_RESEARCH_REPORT.md">Full research report &#8594;</a>
-    <a href="https://github.com/vj0246/artha/blob/main/docs/HANDBOOK.md">Engineering handbook &#8594;</a>
+</main>
+
+<footer class="wrap">
+  <div class="flinks">
+    <a href="https://github.com/vj0246/artha">Repository</a>
+    <a href="https://github.com/vj0246/artha/blob/main/docs/research/PAPER_leaky_decomposition.md">Working paper</a>
+    <a href="https://github.com/vj0246/artha/blob/main/docs/research/ARTHA_RESEARCH_REPORT.md">Research report</a>
+    <a href="https://github.com/vj0246/artha/blob/main/docs/HANDBOOK.md">Handbook</a>
+    <a href="https://github.com/vj0246/artha/tree/main/docs/decisions">Decisions</a>
   </div>
+  <div>Synthetic TRI benchmark &middot; static sector map &middot; cash earns 0% &middot;
+  the deflated Sharpe counts every single-name experiment against the
+  cross-sectional book. Limitations are tracked, not hidden. The operations
+  dashboard is localhost-only by design.</div>
 </footer>
 
-</div>
+<div class="tip" id="tip"></div>
 
 <script>
-const D = {"equity":[["2012-08-01",100.0,100.0],["2012-09-03",99.05,99.8],["2012-10-01",107.3,109.48],["2012-11-01",107.16,108.42],["2012-12-03",114.14,113.67],["2013-01-01",115.37,116.25],["2013-02-01",111.87,116.14],["2013-03-01",104.38,109.55],["2013-04-01",104.34,108.84],["2013-05-02",107.16,114.57],["2013-06-03",107.36,113.84],["2013-07-01",100.83,111.84],["2013-08-01",98.63,106.65],["2013-09-02",96.9,103.87],["2013-10-01",100.85,108.6],["2013-11-01",104.01,118.57],["2013-12-02",104.29,118.26],["2014-01-01",110.9,121.29],["2014-02-03",108.65,114.73],["2014-03-03",113.88,119.01],["2014-04-01",117.51,129.45],["2014-05-02",118.11,130.28],["2014-06-02",129.38,146.56],["2014-07-01",146.65,153.87],["2014-08-01",141.6,151.84],["2014-09-01",147.41,160.11],["2014-10-01",152.47,159.28],["2014-11-03",156.66,167.06],["2014-12-01",157.09,172.04],["2015-01-01",161.17,169.43],["2015-03-02",167.43,182.61],["2015-04-01",172.08,176.79],["2015-05-04",165.15,172.28],["2015-06-01",165.8,174.56],["2015-07-01",168.15,175.15],["2015-08-03",171.56,179.3],["2015-09-01",155.8,164.22],["2015-10-01",158.25,167.73],["2015-11-02",157.22,170.08],["2016-01-01",164.28,170.79],["2016-02-01",155.02,160.56],["2016-03-01",148.83,152.62],["2016-04-01",153.32,163.6],["2016-05-02",153.74,167.18],["2016-06-01",152.62,173.37],["2016-07-01",157.95,178.96],["2016-08-01",165.16,186.97],["2016-09-01",158.61,190.72],["2016-10-03",167.03,192.39],["2016-11-01",171.16,191.8],["2016-12-01",157.81,180.18],["2017-01-02",157.49,179.42],["2017-02-01",166.02,192.78],["2017-03-01",167.35,199.09],["2017-04-03",170.66,206.96],["2017-05-02",175.17,211.71],["2017-06-01",165.7,215.41],["2017-07-03",170.39,216.88],["2017-08-01",175.53,227.27],["2017-09-01",180.42,225.96],["2017-10-03",186.43,223.73],["2017-11-01",201.24,238.7],["2017-12-01",201.25,234.39],["2018-01-01",206.82,244.25],["2018-02-01",206.82,250.98],["2018-03-01",204.24,239.19],["2018-04-02",204.8,234.15],["2018-05-02",207.94,245.29],["2018-06-01",193.94,240.6],["2018-07-02",187.53,237.01],["2018-08-01",193.64,251.37],["2018-09-03",201.74,258.63],["2018-10-01",183.13,239.11],["2018-11-01",180.28,229.08],["2018-12-03",177.86,238.56],["2019-01-01",177.09,240.63],["2019-02-01",179.58,237.18],["2019-03-01",178.02,236.91],["2019-04-01",187.2,254.54],["2019-05-02",186.49,253.05],["2019-06-03",192.49,260.79],["2019-07-01",189.4,255.5],["2019-08-01",176.59,235.32],["2019-09-03",176.96,232.05],["2019-10-01",185.56,243.73],["2019-11-01",192.45,256.33],["2019-12-02",190.07,259.06],["2020-01-01",192.84,261.72],["2020-02-01",198.87,254.52],["2020-03-02",193.1,243.43],["2020-04-01",160.54,179.58],["2020-05-04",166.14,201.98],["2020-06-01",167.39,213.49],["2020-07-01",169.99,228.01],["2020-08-03",178.67,238.37],["2020-09-01",198.0,252.28],["2020-10-01",209.84,253.12],["2020-11-02",209.04,257.02],["2020-12-01",226.72,290.52],["2021-01-01",229.96,310.69],["2021-02-01",230.07,316.23],["2021-03-01",250.19,332.59],["2021-04-01",258.98,335.88],["2021-05-03",268.02,333.87],["2021-06-01",276.65,356.09],["2021-07-01",280.62,363.0],["2021-08-02",288.63,372.21],["2021-09-01",289.11,393.29],["2021-10-01",306.7,406.15],["2021-11-01",303.95,414.31],["2021-12-01",309.59,400.62],["2022-01-03",331.93,412.42],["2022-02-01",337.27,410.39],["2022-03-02",318.56,385.87],["2022-04-01",335.64,410.4],["2022-05-02",330.23,401.19],["2022-06-01",314.22,383.83],["2022-07-01",301.01,365.52],["2022-08-01",317.1,405.62],["2022-09-01",328.74,416.03],["2022-10-03",313.96,400.84],["2022-11-01",322.29,425.87],["2022-12-01",332.02,439.13],["2023-01-02",318.46,426.42],["2023-02-01",304.69,408.3],["2023-03-01",294.41,403.73],["2023-04-03",303.88,402.48],["2023-05-02",317.95,422.14],["2023-06-01",332.7,435.33],["2023-07-03",363.37,457.05],["2023-08-01",402.99,472.02],["2023-09-01",439.15,473.21],["2023-10-03",441.22,478.67],["2023-11-01",434.57,464.68],["2023-12-01",459.89,503.6],["2024-01-01",470.03,541.76],["2024-02-01",511.59,550.87],["2024-03-01",502.55,567.34],["2024-04-01",495.68,571.8],["2024-05-02",514.44,588.78],["2024-06-03",523.59,609.28],["2024-07-01",525.39,635.79],["2024-08-01",538.05,658.18],["2024-09-02",537.85,665.88],["2024-10-01",541.42,680.78],["2024-11-01",533.56,640.78],["2024-12-02",529.42,641.68],["2025-01-01",540.23,632.31],["2025-02-01",493.68,607.65],["2025-03-03",464.43,560.77],["2025-04-01",491.87,594.42],["2025-05-02",488.61,621.36],["2025-06-02",498.74,645.33],["2025-07-01",499.64,668.0],["2025-08-01",495.06,642.03],["2025-09-01",502.43,643.74],["2025-10-01",498.61,650.5],["2025-11-03",513.01,676.19],["2025-12-01",528.67,679.95],["2026-01-01",556.74,680.28],["2026-02-01",556.97,643.94],["2026-03-02",564.4,650.94],["2026-04-01",551.15,597.3],["2026-05-04",576.96,651.98],["2026-06-01",590.88,641.31],["2026-07-01",590.64,661.16]],"dd_strategy":[0.0,-0.95,0.0,-0.13,0.0,0.0,-3.03,-9.53,-9.56,-7.12,-6.94,-12.6,-14.51,-16.01,-12.59,-9.85,-9.6,-3.87,-5.82,-1.29,0.0,0.0,0.0,0.0,-3.44,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-4.03,-3.65,-2.28,-0.3,-9.46,-8.04,-8.64,-4.53,-9.91,-13.51,-10.9,-10.66,-11.31,-8.21,-4.02,-7.83,-2.93,-0.53,-8.29,-8.48,-3.52,-2.75,-0.83,0.0,-5.41,-2.73,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-1.25,-0.98,0.0,-6.73,-9.82,-6.88,-2.98,-11.93,-13.3,-14.47,-14.84,-13.64,-14.39,-9.97,-10.32,-7.43,-8.92,-15.08,-14.9,-10.76,-7.45,-8.59,-7.26,-4.36,-7.14,-22.8,-20.1,-19.5,-18.25,-14.08,-4.78,0.0,-0.38,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-0.9,0.0,0.0,0.0,-5.55,-0.48,-2.09,-6.83,-10.75,-5.98,-2.53,-6.91,-4.44,-1.56,-5.58,-9.66,-12.71,-9.9,-5.73,-1.35,0.0,0.0,0.0,0.0,-1.51,0.0,0.0,0.0,-1.77,-3.11,0.0,0.0,0.0,0.0,-0.04,0.0,-1.45,-2.22,-0.22,-8.82,-14.22,-9.15,-9.75,-7.88,-7.72,-8.56,-7.2,-7.91,-5.25,-2.35,0.0,0.0,0.0,-2.35,0.0,0.0,-0.04],"dd_bench":[0.0,-0.2,0.0,-0.97,0.0,0.0,-0.09,-5.76,-6.37,-1.45,-2.07,-3.79,-8.26,-10.65,-6.58,0.0,-0.26,0.0,-5.41,-1.88,0.0,0.0,0.0,0.0,-1.32,0.0,-0.52,0.0,0.0,-1.52,0.0,-3.19,-5.66,-4.41,-4.09,-1.81,-10.07,-8.15,-6.86,-6.47,-12.07,-16.42,-10.41,-8.45,-5.06,-2.0,0.0,0.0,0.0,-0.31,-6.35,-6.74,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-0.58,-1.56,0.0,-1.81,0.0,0.0,-4.7,-6.71,-2.27,-4.14,-5.57,0.0,0.0,-7.55,-11.43,-7.76,-6.96,-8.29,-8.4,-1.58,-2.16,0.0,-2.03,-9.77,-11.02,-6.54,-1.71,-0.66,0.0,-2.75,-6.99,-31.38,-22.83,-18.43,-12.88,-8.92,-3.61,-3.29,-1.8,0.0,0.0,0.0,0.0,0.0,-0.6,0.0,0.0,0.0,0.0,0.0,0.0,-3.3,-0.46,-0.95,-6.86,-0.94,-3.17,-7.36,-11.78,-2.1,0.0,-3.65,0.0,0.0,-2.89,-7.02,-8.06,-8.35,-3.87,-0.87,0.0,0.0,0.0,0.0,-2.92,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-5.88,-5.74,-7.12,-10.74,-17.63,-12.69,-8.73,-5.21,-1.88,-5.69,-5.44,-4.45,-0.67,-0.12,-0.07,-5.41,-4.38,-12.26,-4.23,-5.8,-2.88],"rolling_sharpe":[["2013-08-01",-0.046],["2013-09-03",-0.163],["2013-10-04",-0.325],["2013-11-05",-0.189],["2013-12-05",-0.696],["2014-01-06",-0.204],["2014-02-04",-0.182],["2014-03-06",0.927],["2014-04-04",1.102],["2014-05-12",0.677],["2014-06-10",1.833],["2014-07-09",2.602],["2014-08-08",2.709],["2014-09-10",3.637],["2014-10-14",2.991],["2014-11-18",3.235],["2014-12-17",2.881],["2015-01-16",2.818],["2015-02-18",3.213],["2015-03-19",2.745],["2015-04-22",2.544],["2015-05-22",2.334],["2015-06-22",1.467],["2015-07-21",1.55],["2015-08-19",1.549],["2015-09-18",0.176],["2015-10-21",0.472],["2015-11-23",-0.029],["2015-12-23",0.484],["2016-01-22",-0.488],["2016-02-23",-0.683],["2016-03-28",-0.634],["2016-04-29",-0.54],["2016-05-30",-0.499],["2016-06-28",-0.417],["2016-07-28",-0.237],["2016-08-29",-0.434],["2016-09-29",0.242],["2016-11-01",0.513],["2016-12-01",0.067],["2016-12-30",-0.218],["2017-01-31",0.701],["2017-03-02",0.978],["2017-04-03",1.007],["2017-05-05",1.031],["2017-06-05",0.764],["2017-07-05",0.903],["2017-08-03",0.622],["2017-09-05",0.965],["2017-10-05",1.401],["2017-11-06",1.367],["2017-12-05",2.006],["2018-01-04",2.499],["2018-02-05",1.416],["2018-03-08",1.408],["2018-04-10",1.451],["2018-05-10",1.274],["2018-06-08",1.043],["2018-07-09",0.674],["2018-08-07",0.838],["2018-09-07",0.915],["2018-10-11",-0.559],["2018-11-13",-0.842],["2018-12-13",-0.815],["2019-01-14",-1.311],["2019-02-12",-0.894],["2019-03-14",-0.745],["2019-04-15",-0.812],["2019-05-20",-0.716],["2019-06-19",-0.323],["2019-07-18",-0.243],["2019-08-20",-0.715],["2019-09-20",-0.54],["2019-10-24",0.749],["2019-11-25",0.492],["2019-12-24",0.677],["2020-01-23",1.213],["2020-02-20",1.622],["2020-03-24",-0.891],["2020-04-28",-0.675],["2020-05-29",-0.658],["2020-06-29",-0.458],["2020-07-28",-0.203],["2020-08-26",1.005],["2020-09-24",0.643],["2020-10-26",0.586],["2020-11-24",1.081],["2020-12-24",1.086],["2021-01-25",0.92],["2021-02-24",1.084],["2021-03-26",3.866],["2021-04-30",3.656],["2021-06-01",3.89],["2021-06-30",3.794],["2021-07-30",3.711],["2021-08-31",2.568],["2021-09-30",3.39],["2021-11-01",3.033],["2021-12-02",2.628],["2021-12-31",2.95],["2022-02-01",2.902],["2022-03-03",1.853],["2022-04-04",2.235],["2022-05-06",1.577],["2022-06-06",0.955],["2022-07-05",0.626],["2022-08-03",0.812],["2022-09-06",1.086],["2022-10-06",0.495],["2022-11-07",0.632],["2022-12-07",0.573],["2023-01-05",-0.211],["2023-02-06",-0.74],["2023-03-08",-0.334],["2023-04-11",-0.658],["2023-05-12",0.09],["2023-06-12",0.909],["2023-07-12",1.892],["2023-08-10",2.035],["2023-09-11",2.521],["2023-10-12",2.434],["2023-11-12",2.385],["2023-12-13",2.532],["2024-01-12",3.731],["2024-02-13",4.007],["2024-03-13",3.435],["2024-04-16",3.803],["2024-05-17",3.582],["2024-06-18",3.027],["2024-07-18",2.536],["2024-08-19",2.074],["2024-09-17",1.369],["2024-10-17",1.66],["2024-11-18",1.082],["2024-12-18",1.163],["2025-01-17",0.437],["2025-02-14",-0.225],["2025-03-19",0.32],["2025-04-23",0.012],["2025-05-23",-0.229],["2025-06-23",-0.405],["2025-07-22",-0.364],["2025-08-21",-0.359],["2025-09-22",-0.442],["2025-10-23",-0.544],["2025-11-24",0.086],["2025-12-23",0.136],["2026-01-23",0.942],["2026-02-23",1.277],["2026-03-25",0.922],["2026-04-29",1.117],["2026-06-01",1.319],["2026-07-01",1.288]],"sizing":[["100,000",1.028,38.4,5.2],["200,000",1.107,19.2,2.6],["500,000",1.154,7.7,1.0],["2,500,000",1.177,1.5,0.2]],"construction":[["equal_bands",0.963,12.8,-27.1,5.2],["ivol_bands",1.02,13.6,-26.9,5.5],["minvar_bands",1.003,13.3,-27.1,6.1],["equal_tau25",0.943,12.3,-30.3,2.5],["equal_tau50",0.97,13.0,-28.5,3.7],["equal_tau75",0.972,13.1,-27.3,4.7],["ivol_tau50",1.024,13.9,-28.8,3.9],["minvar_tau50",1.018,13.7,-28.3,4.2]],"zoo":[["always_long",0.437],["ridge",-0.516],["lgbm",-0.482],["gru",0.098],["lstm",0.156],["transformer",-0.142],["ensemble_mean",-0.235]],"ledger_growth":[["2026-07-13",14],["2026-07-18",17],["2026-07-19",59],["2026-07-20",98],["2026-07-21",108]],"n_trials":108};
-const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-const NS = "http://www.w3.org/2000/svg";
-const el = (t, a, p) => { const n = document.createElementNS(NS, t);
-  for (const k in a) n.setAttribute(k, a[k]); if (p) p.appendChild(n); return n; };
-const fmt = (x, d = 2) => x == null ? "—" : (+x).toFixed(d);
+const D = {"equity":[["2012-08-01",100.0,100.0],["2012-09-03",99.05,99.8],["2012-10-01",107.3,109.48],["2012-11-01",107.16,108.42],["2012-12-03",114.14,113.67],["2013-01-01",115.37,116.25],["2013-02-01",111.87,116.14],["2013-03-01",104.38,109.55],["2013-04-01",104.34,108.84],["2013-05-02",107.16,114.57],["2013-06-03",107.36,113.84],["2013-07-01",100.83,111.84],["2013-08-01",98.63,106.65],["2013-09-02",96.9,103.87],["2013-10-01",100.85,108.6],["2013-11-01",104.01,118.57],["2013-12-02",104.29,118.26],["2014-01-01",110.9,121.29],["2014-02-03",108.65,114.73],["2014-03-03",113.88,119.01],["2014-04-01",117.51,129.45],["2014-05-02",118.11,130.28],["2014-06-02",129.38,146.56],["2014-07-01",146.65,153.87],["2014-08-01",141.6,151.84],["2014-09-01",147.41,160.11],["2014-10-01",152.47,159.28],["2014-11-03",156.66,167.06],["2014-12-01",157.09,172.04],["2015-01-01",161.17,169.43],["2015-03-02",167.43,182.61],["2015-04-01",172.08,176.79],["2015-05-04",165.15,172.28],["2015-06-01",165.8,174.56],["2015-07-01",168.15,175.15],["2015-08-03",171.56,179.3],["2015-09-01",155.8,164.22],["2015-10-01",158.25,167.73],["2015-11-02",157.22,170.08],["2016-01-01",164.28,170.79],["2016-02-01",155.02,160.56],["2016-03-01",148.83,152.62],["2016-04-01",153.32,163.6],["2016-05-02",153.74,167.18],["2016-06-01",152.62,173.37],["2016-07-01",157.95,178.96],["2016-08-01",165.16,186.97],["2016-09-01",158.61,190.72],["2016-10-03",167.03,192.39],["2016-11-01",171.16,191.8],["2016-12-01",157.81,180.18],["2017-01-02",157.49,179.42],["2017-02-01",166.02,192.78],["2017-03-01",167.35,199.09],["2017-04-03",170.66,206.96],["2017-05-02",175.17,211.71],["2017-06-01",165.7,215.41],["2017-07-03",170.39,216.88],["2017-08-01",175.53,227.27],["2017-09-01",180.42,225.96],["2017-10-03",186.43,223.73],["2017-11-01",201.24,238.7],["2017-12-01",201.25,234.39],["2018-01-01",206.82,244.25],["2018-02-01",206.82,250.98],["2018-03-01",204.24,239.19],["2018-04-02",204.8,234.15],["2018-05-02",207.94,245.29],["2018-06-01",193.94,240.6],["2018-07-02",187.53,237.01],["2018-08-01",193.64,251.37],["2018-09-03",201.74,258.63],["2018-10-01",183.13,239.11],["2018-11-01",180.28,229.08],["2018-12-03",177.86,238.56],["2019-01-01",177.09,240.63],["2019-02-01",179.58,237.18],["2019-03-01",178.02,236.91],["2019-04-01",187.2,254.54],["2019-05-02",186.49,253.05],["2019-06-03",192.49,260.79],["2019-07-01",189.4,255.5],["2019-08-01",176.59,235.32],["2019-09-03",176.96,232.05],["2019-10-01",185.56,243.73],["2019-11-01",192.45,256.33],["2019-12-02",190.07,259.06],["2020-01-01",192.84,261.72],["2020-02-01",198.87,254.52],["2020-03-02",193.1,243.43],["2020-04-01",160.54,179.58],["2020-05-04",166.14,201.98],["2020-06-01",167.39,213.49],["2020-07-01",169.99,228.01],["2020-08-03",178.67,238.37],["2020-09-01",198.0,252.28],["2020-10-01",209.84,253.12],["2020-11-02",209.04,257.02],["2020-12-01",226.72,290.52],["2021-01-01",229.96,310.69],["2021-02-01",230.07,316.23],["2021-03-01",250.19,332.59],["2021-04-01",258.98,335.88],["2021-05-03",268.02,333.87],["2021-06-01",276.65,356.09],["2021-07-01",280.62,363.0],["2021-08-02",288.63,372.21],["2021-09-01",289.11,393.29],["2021-10-01",306.7,406.15],["2021-11-01",303.95,414.31],["2021-12-01",309.59,400.62],["2022-01-03",331.93,412.42],["2022-02-01",337.27,410.39],["2022-03-02",318.56,385.87],["2022-04-01",335.64,410.4],["2022-05-02",330.23,401.19],["2022-06-01",314.22,383.83],["2022-07-01",301.01,365.52],["2022-08-01",317.1,405.62],["2022-09-01",328.74,416.03],["2022-10-03",313.96,400.84],["2022-11-01",322.29,425.87],["2022-12-01",332.02,439.13],["2023-01-02",318.46,426.42],["2023-02-01",304.69,408.3],["2023-03-01",294.41,403.73],["2023-04-03",303.88,402.48],["2023-05-02",317.95,422.14],["2023-06-01",332.7,435.33],["2023-07-03",363.37,457.05],["2023-08-01",402.99,472.02],["2023-09-01",439.15,473.21],["2023-10-03",441.22,478.67],["2023-11-01",434.57,464.68],["2023-12-01",459.89,503.6],["2024-01-01",470.03,541.76],["2024-02-01",511.59,550.87],["2024-03-01",502.55,567.34],["2024-04-01",495.68,571.8],["2024-05-02",514.44,588.78],["2024-06-03",523.59,609.28],["2024-07-01",525.39,635.79],["2024-08-01",538.05,658.18],["2024-09-02",537.85,665.88],["2024-10-01",541.42,680.78],["2024-11-01",533.56,640.78],["2024-12-02",529.42,641.68],["2025-01-01",540.23,632.31],["2025-02-01",493.68,607.65],["2025-03-03",464.43,560.77],["2025-04-01",491.87,594.42],["2025-05-02",488.61,621.36],["2025-06-02",498.74,645.33],["2025-07-01",499.64,668.0],["2025-08-01",495.06,642.03],["2025-09-01",502.43,643.74],["2025-10-01",498.61,650.5],["2025-11-03",513.01,676.19],["2025-12-01",528.67,679.95],["2026-01-01",556.74,680.28],["2026-02-01",556.97,643.94],["2026-03-02",564.4,650.94],["2026-04-01",551.15,597.3],["2026-05-04",576.96,651.98],["2026-06-01",590.88,641.31],["2026-07-01",590.64,661.16]],"dd_strategy":[0.0,-0.95,0.0,-0.13,0.0,0.0,-3.03,-9.53,-9.56,-7.12,-6.94,-12.6,-14.51,-16.01,-12.59,-9.85,-9.6,-3.87,-5.82,-1.29,0.0,0.0,0.0,0.0,-3.44,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-4.03,-3.65,-2.28,-0.3,-9.46,-8.04,-8.64,-4.53,-9.91,-13.51,-10.9,-10.66,-11.31,-8.21,-4.02,-7.83,-2.93,-0.53,-8.29,-8.48,-3.52,-2.75,-0.83,0.0,-5.41,-2.73,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-1.25,-0.98,0.0,-6.73,-9.82,-6.88,-2.98,-11.93,-13.3,-14.47,-14.84,-13.64,-14.39,-9.97,-10.32,-7.43,-8.92,-15.08,-14.9,-10.76,-7.45,-8.59,-7.26,-4.36,-7.14,-22.8,-20.1,-19.5,-18.25,-14.08,-4.78,0.0,-0.38,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-0.9,0.0,0.0,0.0,-5.55,-0.48,-2.09,-6.83,-10.75,-5.98,-2.53,-6.91,-4.44,-1.56,-5.58,-9.66,-12.71,-9.9,-5.73,-1.35,0.0,0.0,0.0,0.0,-1.51,0.0,0.0,0.0,-1.77,-3.11,0.0,0.0,0.0,0.0,-0.04,0.0,-1.45,-2.22,-0.22,-8.82,-14.22,-9.15,-9.75,-7.88,-7.72,-8.56,-7.2,-7.91,-5.25,-2.35,0.0,0.0,0.0,-2.35,0.0,0.0,-0.04],"dd_bench":[0.0,-0.2,0.0,-0.97,0.0,0.0,-0.09,-5.76,-6.37,-1.45,-2.07,-3.79,-8.26,-10.65,-6.58,0.0,-0.26,0.0,-5.41,-1.88,0.0,0.0,0.0,0.0,-1.32,0.0,-0.52,0.0,0.0,-1.52,0.0,-3.19,-5.66,-4.41,-4.09,-1.81,-10.07,-8.15,-6.86,-6.47,-12.07,-16.42,-10.41,-8.45,-5.06,-2.0,0.0,0.0,0.0,-0.31,-6.35,-6.74,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-0.58,-1.56,0.0,-1.81,0.0,0.0,-4.7,-6.71,-2.27,-4.14,-5.57,0.0,0.0,-7.55,-11.43,-7.76,-6.96,-8.29,-8.4,-1.58,-2.16,0.0,-2.03,-9.77,-11.02,-6.54,-1.71,-0.66,0.0,-2.75,-6.99,-31.38,-22.83,-18.43,-12.88,-8.92,-3.61,-3.29,-1.8,0.0,0.0,0.0,0.0,0.0,-0.6,0.0,0.0,0.0,0.0,0.0,0.0,-3.3,-0.46,-0.95,-6.86,-0.94,-3.17,-7.36,-11.78,-2.1,0.0,-3.65,0.0,0.0,-2.89,-7.02,-8.06,-8.35,-3.87,-0.87,0.0,0.0,0.0,0.0,-2.92,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-5.88,-5.74,-7.12,-10.74,-17.63,-12.69,-8.73,-5.21,-1.88,-5.69,-5.44,-4.45,-0.67,-0.12,-0.07,-5.41,-4.38,-12.26,-4.23,-5.8,-2.88],"rolling_sharpe":[["2013-08-01",-0.046],["2013-09-03",-0.163],["2013-10-04",-0.325],["2013-11-05",-0.189],["2013-12-05",-0.696],["2014-01-06",-0.204],["2014-02-04",-0.182],["2014-03-06",0.927],["2014-04-04",1.102],["2014-05-12",0.677],["2014-06-10",1.833],["2014-07-09",2.602],["2014-08-08",2.709],["2014-09-10",3.637],["2014-10-14",2.991],["2014-11-18",3.235],["2014-12-17",2.881],["2015-01-16",2.818],["2015-02-18",3.213],["2015-03-19",2.745],["2015-04-22",2.544],["2015-05-22",2.334],["2015-06-22",1.467],["2015-07-21",1.55],["2015-08-19",1.549],["2015-09-18",0.176],["2015-10-21",0.472],["2015-11-23",-0.029],["2015-12-23",0.484],["2016-01-22",-0.488],["2016-02-23",-0.683],["2016-03-28",-0.634],["2016-04-29",-0.54],["2016-05-30",-0.499],["2016-06-28",-0.417],["2016-07-28",-0.237],["2016-08-29",-0.434],["2016-09-29",0.242],["2016-11-01",0.513],["2016-12-01",0.067],["2016-12-30",-0.218],["2017-01-31",0.701],["2017-03-02",0.978],["2017-04-03",1.007],["2017-05-05",1.031],["2017-06-05",0.764],["2017-07-05",0.903],["2017-08-03",0.622],["2017-09-05",0.965],["2017-10-05",1.401],["2017-11-06",1.367],["2017-12-05",2.006],["2018-01-04",2.499],["2018-02-05",1.416],["2018-03-08",1.408],["2018-04-10",1.451],["2018-05-10",1.274],["2018-06-08",1.043],["2018-07-09",0.674],["2018-08-07",0.838],["2018-09-07",0.915],["2018-10-11",-0.559],["2018-11-13",-0.842],["2018-12-13",-0.815],["2019-01-14",-1.311],["2019-02-12",-0.894],["2019-03-14",-0.745],["2019-04-15",-0.812],["2019-05-20",-0.716],["2019-06-19",-0.323],["2019-07-18",-0.243],["2019-08-20",-0.715],["2019-09-20",-0.54],["2019-10-24",0.749],["2019-11-25",0.492],["2019-12-24",0.677],["2020-01-23",1.213],["2020-02-20",1.622],["2020-03-24",-0.891],["2020-04-28",-0.675],["2020-05-29",-0.658],["2020-06-29",-0.458],["2020-07-28",-0.203],["2020-08-26",1.005],["2020-09-24",0.643],["2020-10-26",0.586],["2020-11-24",1.081],["2020-12-24",1.086],["2021-01-25",0.92],["2021-02-24",1.084],["2021-03-26",3.866],["2021-04-30",3.656],["2021-06-01",3.89],["2021-06-30",3.794],["2021-07-30",3.711],["2021-08-31",2.568],["2021-09-30",3.39],["2021-11-01",3.033],["2021-12-02",2.628],["2021-12-31",2.95],["2022-02-01",2.902],["2022-03-03",1.853],["2022-04-04",2.235],["2022-05-06",1.577],["2022-06-06",0.955],["2022-07-05",0.626],["2022-08-03",0.812],["2022-09-06",1.086],["2022-10-06",0.495],["2022-11-07",0.632],["2022-12-07",0.573],["2023-01-05",-0.211],["2023-02-06",-0.74],["2023-03-08",-0.334],["2023-04-11",-0.658],["2023-05-12",0.09],["2023-06-12",0.909],["2023-07-12",1.892],["2023-08-10",2.035],["2023-09-11",2.521],["2023-10-12",2.434],["2023-11-12",2.385],["2023-12-13",2.532],["2024-01-12",3.731],["2024-02-13",4.007],["2024-03-13",3.435],["2024-04-16",3.803],["2024-05-17",3.582],["2024-06-18",3.027],["2024-07-18",2.536],["2024-08-19",2.074],["2024-09-17",1.369],["2024-10-17",1.66],["2024-11-18",1.082],["2024-12-18",1.163],["2025-01-17",0.437],["2025-02-14",-0.225],["2025-03-19",0.32],["2025-04-23",0.012],["2025-05-23",-0.229],["2025-06-23",-0.405],["2025-07-22",-0.364],["2025-08-21",-0.359],["2025-09-22",-0.442],["2025-10-23",-0.544],["2025-11-24",0.086],["2025-12-23",0.136],["2026-01-23",0.942],["2026-02-23",1.277],["2026-03-25",0.922],["2026-04-29",1.117],["2026-06-01",1.319],["2026-07-01",1.288]],"metrics":{"cagr":13.7,"vol":13.6,"sharpe":1.02,"sortino":1.19,"calmar":0.49,"max_dd":-28.3,"underwater_days":706,"beta":0.61,"alpha":4.7,"tracking_error":11.3,"info_ratio":-0.12,"correlation":0.72,"up_capture":0.69,"down_capture":0.65,"monthly_win_rate":61.9,"best_month":12.9,"worst_month":-16.9,"daily_skew":-1.08,"var95":-1.4,"cvar95":-2.2,"n_days":3456,"n_months":168},"sizing":[["100,000",1.028,38.4,5.2],["200,000",1.107,19.2,2.6],["500,000",1.154,7.7,1.0],["2,500,000",1.177,1.5,0.2]],"construction":[["equal_bands",0.963,12.8,-27.1,5.2],["ivol_bands",1.02,13.6,-26.9,5.5],["minvar_bands",1.003,13.3,-27.1,6.1],["equal_tau25",0.943,12.3,-30.3,2.5],["equal_tau50",0.97,13.0,-28.5,3.7],["equal_tau75",0.972,13.1,-27.3,4.7],["ivol_tau50",1.024,13.9,-28.8,3.9],["minvar_tau50",1.018,13.7,-28.3,4.2]],"zoo":[["always_long",0.437],["ridge",-0.516],["lgbm",-0.482],["gru",0.098],["lstm",0.156],["transformer",-0.142],["ensemble_mean",-0.235]],"ledger_growth":[["2026-07-13",14],["2026-07-18",17],["2026-07-19",59],["2026-07-20",98],["2026-07-21",108]],"n_trials":108};
+const tip = document.getElementById('tip');
+const NS = 'http://www.w3.org/2000/svg';
+const el = (n, a = {}) => {
+  const e = document.createElementNS(NS, n);
+  for (const k in a) e.setAttribute(k, a[k]);
+  return e;
+};
+const cssv = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const fmt = (v, d = 2) => v == null ? '—' : (+v).toFixed(d);
+const yr = s => s.slice(0, 4);
+const esc = s => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 
-function tipFor(fig){
-  let t = fig.querySelector(".tip");
-  if (!t) { t = document.createElement("div"); t.className = "tip"; fig.appendChild(t); }
-  return t;
+function showTip(html, ev) {
+  tip.innerHTML = html;
+  tip.style.opacity = 1;
+  const r = tip.getBoundingClientRect();
+  let x = ev.clientX + 16, y = ev.clientY - r.height / 2;
+  if (x + r.width > innerWidth - 10) x = ev.clientX - r.width - 16;
+  tip.style.left = Math.max(8, x) + 'px';
+  tip.style.top = Math.min(Math.max(8, y), innerHeight - r.height - 8) + 'px';
 }
-function place(tip, ev, fig){
-  const b = fig.getBoundingClientRect();
-  tip.style.display = "block";
-  tip.style.left = Math.min(ev.clientX - b.left + 14, b.width - 175) + "px";
-  tip.style.top = Math.max(ev.clientY - b.top - 12, 4) + "px";
-}
+const hideTip = () => { tip.style.opacity = 0; };
 
-function lineChart(mount, series, opts){
-  opts = opts || {};
-  const host = document.getElementById(mount); host.replaceChildren();
-  const fig = host.closest("figure"), tip = tipFor(fig);
-  const W = 900, H = opts.h || 300, P = {t:14, r:16, b:26, l:48};
-  const all = series.flatMap(s => s.pts);
-  if (!all.length) return;
-  const xs = all.map(p => p[0]), ys = all.map(p => p[1]);
-  const x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs);
-  let lo = opts.lo != null ? opts.lo : Math.min.apply(null, ys);
-  let hi = Math.max.apply(null, ys);
-  const pad = (hi - lo || 1) * .08; hi += pad; if (opts.lo == null) lo -= pad;
-  const X = v => P.l + (W - P.l - P.r) * (v - x0) / (x1 - x0 || 1);
-  const Y = v => H - P.b - (H - P.b - P.t) * (v - lo) / (hi - lo || 1);
-  const svg = el("svg", {viewBox:"0 0 " + W + " " + H, preserveAspectRatio:"none",
-                         role:"img", "aria-label":opts.label || mount}, host);
-  svg.style.height = H + "px";
-  for (let i = 0; i <= 4; i++){
-    const v = lo + (hi - lo) * i / 4, y = Y(v);
-    el("line", {x1:P.l, x2:W - P.r, y1:y, y2:y, stroke:css("--grid")}, svg);
-    const t = el("text", {x:P.l - 7, y:y + 4, "text-anchor":"end"}, svg);
-    t.textContent = opts.fy ? opts.fy(v) : fmt(v, 0);
+/* line chart: crosshair + all-series tooltip */
+function lineChart(id, opt) {
+  const host = document.getElementById(id);
+  if (!host) return;
+  host.innerHTML = '';
+  const W = 900, H = opt.h || 320, m = { t: 14, r: 16, b: 26, l: 48 };
+  const iw = W - m.l - m.r, ih = H - m.t - m.b;
+  const S = opt.series, n = S[0].data.length;
+  if (!n) return;
+  const svg = el('svg', { viewBox: `0 0 ${W} ${H}` });
+
+  let lo = Infinity, hi = -Infinity;
+  S.forEach(s => s.data.forEach(d => { if (d[1] < lo) lo = d[1]; if (d[1] > hi) hi = d[1]; }));
+  if (opt.zero) { lo = Math.min(lo, 0); hi = Math.max(hi, 0); }
+  const pad = (hi - lo) * 0.08 || 1;
+  lo -= pad; hi += pad;
+  const X = i => m.l + (n < 2 ? iw / 2 : i / (n - 1) * iw);
+  const Y = v => m.t + ih - (v - lo) / (hi - lo) * ih;
+
+  for (let g = 0; g <= 4; g++) {
+    const v = lo + (hi - lo) * g / 4, y = Y(v);
+    svg.appendChild(el('line', { x1: m.l, x2: m.l + iw, y1: y, y2: y, class: 'gridline' }));
+    const t = el('text', { x: m.l - 8, y: y + 4, class: 'axis', 'text-anchor': 'end' });
+    t.textContent = opt.yFmt ? opt.yFmt(v) : Math.round(v);
+    svg.appendChild(t);
   }
-  if (opts.zero){ const y = Y(0);
-    el("line", {x1:P.l, x2:W - P.r, y1:y, y2:y, stroke:css("--line"), "stroke-width":1.5}, svg); }
-  const fd = t => new Date(t).toISOString().slice(0, 7);
-  const a = el("text", {x:P.l, y:H - 8}, svg); a.textContent = fd(x0);
-  const b = el("text", {x:W - P.r, y:H - 8, "text-anchor":"end"}, svg); b.textContent = fd(x1);
-  series.forEach(s => {
-    if (s.area){
-      const d = s.pts.map((p,i) => (i?"L":"M") + X(p[0]).toFixed(1) + " " + Y(p[1]).toFixed(1)).join("")
-        + "L" + X(s.pts[s.pts.length-1][0]).toFixed(1) + " " + Y(0).toFixed(1)
-        + "L" + X(s.pts[0][0]).toFixed(1) + " " + Y(0).toFixed(1) + "Z";
-      el("path", {d:d, fill:s.color, opacity:.16}, svg);
+  if (opt.zero) {
+    const y = Y(0);
+    svg.appendChild(el('line', { x1: m.l, x2: m.l + iw, y1: y, y2: y, class: 'zero' }));
+  }
+
+  const step = Math.max(1, Math.floor(n / 7));
+  for (let i = 0; i < n; i += step) {
+    const t = el('text', { x: X(i), y: H - 6, class: 'axis', 'text-anchor': 'middle' });
+    t.textContent = yr(S[0].data[i][0]);
+    svg.appendChild(t);
+  }
+
+  S.forEach(s => {
+    const pts = s.data.map((d, i) => `${X(i)},${Y(d[1])}`).join(' ');
+    if (opt.area) {
+      svg.appendChild(el('polygon', {
+        points: `${m.l},${Y(opt.zero ? 0 : lo)} ${pts} ${m.l + iw},${Y(opt.zero ? 0 : lo)}`,
+        fill: s.color, opacity: .10
+      }));
     }
-    const d = s.pts.map((p,i) => (i?"L":"M") + X(p[0]).toFixed(1) + " " + Y(p[1]).toFixed(1)).join("");
-    el("path", {d:d, fill:"none", stroke:s.color, "stroke-width":2, "stroke-linejoin":"round"}, svg);
+    svg.appendChild(el('polyline', {
+      points: pts, fill: 'none', stroke: s.color, 'stroke-width': 2,
+      'stroke-linejoin': 'round', 'stroke-linecap': 'round'
+    }));
   });
-  const cross = el("line", {y1:P.t, y2:H - P.b, stroke:css("--line"), visibility:"hidden"}, svg);
-  const dots = series.map(s => el("circle", {r:4, fill:s.color, stroke:css("--surface"),
-                                             "stroke-width":2, visibility:"hidden"}, svg));
-  svg.addEventListener("pointermove", ev => {
-    const bb = svg.getBoundingClientRect();
-    const tx = x0 + ((ev.clientX - bb.left) * W / bb.width - P.l) / (W - P.l - P.r) * (x1 - x0);
-    tip.replaceChildren(); let snap = null;
-    series.forEach((s, i) => {
-      let k = 0;
-      for (let j = 1; j < s.pts.length; j++)
-        if (Math.abs(s.pts[j][0] - tx) < Math.abs(s.pts[k][0] - tx)) k = j;
-      const p = s.pts[k]; if (snap == null) snap = p[0];
-      dots[i].setAttribute("cx", X(p[0])); dots[i].setAttribute("cy", Y(p[1]));
-      dots[i].setAttribute("visibility", "visible");
-      const r = document.createElement("div"); r.className = "r";
-      const kk = document.createElement("span"); kk.className = "k"; kk.style.background = s.color;
-      const nm = document.createElement("span"); nm.textContent = s.name;
-      const vv = document.createElement("span"); vv.className = "v";
-      vv.textContent = (opts.fv || (v => fmt(v, 1)))(p[1]);
-      r.append(kk, nm, vv); tip.appendChild(r);
+
+  const cross = el('line', { y1: m.t, y2: m.t + ih, class: 'zero', opacity: 0 });
+  svg.appendChild(cross);
+  const dots = S.map(s => {
+    const c = el('circle', {
+      r: 4.5, fill: s.color, stroke: cssv('--panel'), 'stroke-width': 2, opacity: 0
     });
-    const dd = document.createElement("div"); dd.className = "d";
-    dd.textContent = new Date(snap).toISOString().slice(0, 10);
-    tip.prepend(dd);
-    cross.setAttribute("x1", X(snap)); cross.setAttribute("x2", X(snap));
-    cross.setAttribute("visibility", "visible");
-    place(tip, ev, fig);
+    svg.appendChild(c);
+    return c;
   });
-  svg.addEventListener("pointerleave", () => {
-    cross.setAttribute("visibility", "hidden");
-    dots.forEach(d => d.setAttribute("visibility", "hidden"));
-    tip.style.display = "none";
-  });
-}
 
-function barChart(mount, bars, opts){
-  opts = opts || {};
-  const host = document.getElementById(mount); host.replaceChildren();
-  const fig = host.closest("figure"), tip = tipFor(fig);
-  const W = 900, rowH = 34, P = {t:8, r:78, b:26, l:opts.l || 176};
-  const H = P.t + P.b + bars.length * rowH;
-  const vals = bars.map(b => b.v);
-  const lo = Math.min.apply(null, [0].concat(vals));
-  const hi = Math.max.apply(null, vals) * 1.05;
-  const X = v => P.l + (W - P.l - P.r) * (v - lo) / (hi - lo || 1);
-  const svg = el("svg", {viewBox:"0 0 " + W + " " + H, preserveAspectRatio:"none",
-                         role:"img", "aria-label":opts.label || mount}, host);
-  svg.style.height = H + "px";
-  el("line", {x1:X(0), x2:X(0), y1:P.t, y2:H - P.b, stroke:css("--line")}, svg);
-  if (opts.ref != null){
-    const x = X(opts.ref);
-    el("line", {x1:x, x2:x, y1:P.t, y2:H - P.b, stroke:css("--ink2"),
-                "stroke-width":1.5, "stroke-dasharray":"5 4"}, svg);
-    const t = el("text", {x:x + 6, y:H - P.b + 16, class:"lab"}, svg);
-    t.textContent = opts.refLabel || "";
-  }
-  bars.forEach((b, i) => {
-    const y = P.t + i * rowH + 6, h = rowH - 15;
-    const x = b.v >= 0 ? X(0) : X(b.v), w = Math.max(2, Math.abs(X(b.v) - X(0)));
-    el("rect", {x:x, y:y, width:w, height:h, rx:4, fill:b.color || css("--s1")}, svg);
-    const lb = el("text", {x:P.l - 10, y:y + h - 2, "text-anchor":"end", class:"lab"}, svg);
-    lb.textContent = b.label;
-    const vl = el("text", {x:(b.v >= 0 ? X(b.v) : X(0)) + 8, y:y + h - 2, class:"val"}, svg);
-    vl.textContent = (opts.fv || (v => fmt(v, 2)))(b.v);
-    const hit = el("rect", {x:0, y:P.t + i * rowH, width:W, height:rowH, fill:"transparent"}, svg);
-    hit.addEventListener("pointermove", ev => {
-      tip.replaceChildren();
-      const d = document.createElement("div"); d.className = "d"; d.textContent = b.label;
-      tip.appendChild(d);
-      const det = b.detail || {};
-      for (const k in det){
-        const r = document.createElement("div"); r.className = "r";
-        const nm = document.createElement("span"); nm.textContent = k;
-        const vv = document.createElement("span"); vv.className = "v"; vv.textContent = det[k];
-        r.append(nm, vv); tip.appendChild(r);
-      }
-      place(tip, ev, fig);
+  const hit = el('rect', { x: m.l, y: m.t, width: iw, height: ih, fill: 'transparent' });
+  svg.appendChild(hit);
+  hit.addEventListener('mousemove', e => {
+    const r = svg.getBoundingClientRect();
+    const raw = ((e.clientX - r.left) / r.width * W - m.l) / iw * (n - 1);
+    const i = Math.round(Math.max(0, Math.min(n - 1, raw)));
+    cross.setAttribute('x1', X(i));
+    cross.setAttribute('x2', X(i));
+    cross.setAttribute('opacity', 1);
+    S.forEach((s, k) => {
+      dots[k].setAttribute('cx', X(i));
+      dots[k].setAttribute('cy', Y(s.data[i][1]));
+      dots[k].setAttribute('opacity', 1);
     });
-    hit.addEventListener("pointerleave", () => { tip.style.display = "none"; });
+    showTip(`<div class="d">${S[0].data[i][0]}</div>` + S.map(s =>
+      `<div class="row"><span><i style="display:inline-block;width:9px;height:9px;` +
+      `border-radius:2px;background:${s.color};margin-right:6px"></i>${esc(s.name)}</span>` +
+      `<b>${opt.tFmt ? opt.tFmt(s.data[i][1]) : fmt(s.data[i][1])}</b></div>`).join(''), e);
   });
+  hit.addEventListener('mouseleave', () => {
+    hideTip();
+    cross.setAttribute('opacity', 0);
+    dots.forEach(d => d.setAttribute('opacity', 0));
+  });
+  host.appendChild(svg);
 }
 
-const T = s => new Date(s + "T00:00:00Z").getTime();
+/* bar chart: per-bar hover, direct value labels */
+function barChart(id, opt) {
+  const host = document.getElementById(id);
+  if (!host) return;
+  host.innerHTML = '';
+  const rows = opt.data, n = rows.length;
+  if (!n) return;
+  const W = 900, H = opt.h || (n * 30 + 40), m = { t: 12, r: 66, b: 22, l: opt.l || 170 };
+  const iw = W - m.l - m.r, ih = H - m.t - m.b;
+  const svg = el('svg', { viewBox: `0 0 ${W} ${H}` });
+  const vals = rows.map(r => r[1]);
+  let lo = Math.min(0, ...vals), hi = Math.max(0, ...vals);
+  if (opt.ref != null) hi = Math.max(hi, opt.ref);
+  const pad = (hi - lo) * 0.08 || 1;
+  hi += pad;
+  if (lo < 0) lo -= pad;
+  const X = v => m.l + (v - lo) / (hi - lo) * iw;
+  const gap = ih / n, bh = Math.min(20, gap - 6);
 
-function drawEquity(years){
-  let rows = D.equity;
-  if (years){
-    const cut = T(rows[rows.length-1][0]) - years * 365.25 * 864e5;
-    rows = rows.filter(r => T(r[0]) >= cut);
-    const b0 = rows[0][1], b1 = rows[0][2];
-    rows = rows.map(r => [r[0], r[1] / b0 * 100, r[2] / b1 * 100]);
+  svg.appendChild(el('line', { x1: X(0), x2: X(0), y1: m.t, y2: m.t + ih, class: 'gridline' }));
+  if (opt.ref != null) {
+    const x = X(opt.ref);
+    svg.appendChild(el('line', { x1: x, x2: x, y1: m.t, y2: m.t + ih, class: 'refline' }));
+    const t = el('text', { x: x, y: m.t - 2, class: 'axis', 'text-anchor': 'middle' });
+    t.textContent = opt.refLabel || '';
+    svg.appendChild(t);
   }
-  lineChart("c-equity", [
-    {name:"Artha", color:css("--s1"), pts:rows.map(r => [T(r[0]), r[1]])},
-    {name:"NIFTY 500 TR", color:css("--s3"), pts:rows.map(r => [T(r[0]), r[2]])}
-  ], {h:320, fy:v => fmt(v,0), fv:v => "₹" + fmt(v,0), label:"Growth of 100"});
-  const tb = document.getElementById("t-equity"); tb.replaceChildren();
-  const hr = tb.insertRow();
-  ["Month","Artha","NIFTY 500 TR"].forEach(h => {
-    const th = document.createElement("th"); th.textContent = h; hr.appendChild(th); });
-  rows.filter((_, i) => i % 6 === 0).forEach(r => {
-    const tr = tb.insertRow();
-    tr.insertCell().textContent = r[0].slice(0,7);
-    tr.insertCell().textContent = fmt(r[1],1);
-    tr.insertCell().textContent = fmt(r[2],1);
+
+  rows.forEach((r, i) => {
+    const y = m.t + i * gap + (gap - bh) / 2, v = r[1];
+    const x0 = X(Math.min(0, v)), x1 = X(Math.max(0, v));
+    const hl = r[0] === opt.highlight;
+    const base = hl ? 1 : (v < 0 ? .9 : .62);
+    const g = el('g');
+    const bar = el('rect', {
+      x: x0, y: y, width: Math.max(1, x1 - x0), height: bh, rx: 4,
+      fill: v < 0 ? cssv('--s2') : cssv('--s1'), opacity: base
+    });
+    g.appendChild(bar);
+    const lb = el('text', { x: m.l - 10, y: y + bh / 2 + 4, class: 'axis', 'text-anchor': 'end' });
+    lb.textContent = r[0];
+    if (hl) lb.setAttribute('fill', cssv('--ink'));
+    g.appendChild(lb);
+    const vl = el('text', {
+      x: x1 + 8, y: y + bh / 2 + 4, class: 'axis', 'text-anchor': 'start', fill: cssv('--ink-2')
+    });
+    vl.textContent = opt.vFmt ? opt.vFmt(v) : fmt(v, 3);
+    g.appendChild(vl);
+    const hit = el('rect', {
+      x: m.l, y: m.t + i * gap, width: iw, height: gap, fill: 'transparent'
+    });
+    hit.addEventListener('mousemove', e => {
+      bar.setAttribute('opacity', 1);
+      showTip(`<div class="d">${esc(r[0])}</div>` + (opt.tip ? opt.tip(r) :
+        `<div class="row"><span>${opt.vLabel || 'value'}</span><b>${fmt(v, 3)}</b></div>`), e);
+    });
+    hit.addEventListener('mouseleave', () => { hideTip(); bar.setAttribute('opacity', base); });
+    g.appendChild(hit);
+    svg.appendChild(g);
   });
+  host.appendChild(svg);
 }
-drawEquity(0);
-document.getElementById("eqf").addEventListener("click", e => {
-  const b = e.target.closest("button"); if (!b) return;
-  document.querySelectorAll("#eqf button").forEach(x => x.setAttribute("aria-pressed","false"));
-  b.setAttribute("aria-pressed","true");
-  drawEquity(+b.dataset.y);
+
+function table(id, head, rows) {
+  const h = document.getElementById(id);
+  if (!h) return;
+  h.innerHTML = `<table><thead><tr>${head.map(c => `<th>${c}</th>`).join('')}</tr></thead>` +
+    `<tbody>${rows.map(r => `<tr>${r.map((c, i) =>
+      i ? `<td class="num">${c}</td>` : `<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+}
+
+/* fill static readouts */
+const M = D.metrics;
+document.getElementById('h-sharpe').textContent = fmt(M.sharpe);
+document.getElementById('h-cagr').textContent = M.cagr + '%';
+document.getElementById('h-dd').textContent = M.max_dd + '%';
+document.getElementById('h-trials').textContent = D.n_trials + ' trials';
+document.getElementById('p-trials').textContent = D.n_trials + ' trials';
+document.getElementById('m-span').textContent =
+  M.n_days + ' trading days · ' + M.n_months + ' months';
+
+const mrow = (l, v) => `<div class="m"><span>${l}</span><b class="num">${v}</b></div>`;
+document.getElementById('g-return').innerHTML =
+  mrow('CAGR', M.cagr + '%') + mrow('Post-tax CAGR', '11.0%') +
+  mrow('Monthly win rate', M.monthly_win_rate + '%') +
+  mrow('Best month', M.best_month + '%') + mrow('Worst month', M.worst_month + '%');
+document.getElementById('g-risk').innerHTML =
+  mrow('Volatility', M.vol + '%') + mrow('Sortino', fmt(M.sortino)) +
+  mrow('Calmar', fmt(M.calmar)) + mrow('Max drawdown', M.max_dd + '%') +
+  mrow('Longest underwater', M.underwater_days + 'd');
+document.getElementById('g-rel').innerHTML =
+  mrow('Beta', fmt(M.beta)) + mrow('Alpha', M.alpha + '%') +
+  mrow('Information ratio', fmt(M.info_ratio)) + mrow('Up capture', fmt(M.up_capture)) +
+  mrow('Down capture', fmt(M.down_capture));
+document.getElementById('g-dist').innerHTML =
+  mrow('Daily skew', fmt(M.daily_skew)) + mrow('VaR 95%', M.var95 + '%') +
+  mrow('CVaR 95%', M.cvar95 + '%') + mrow('Correlation', fmt(M.correlation)) +
+  mrow('Tracking error', M.tracking_error + '%');
+
+const pctF = v => v.toFixed(1) + '%';
+let range = 'all';
+
+function drawEquity() {
+  let e = D.equity, ds = D.dd_strategy, db = D.dd_bench;
+  if (range !== 'all') {
+    const k = +range * 12;
+    e = e.slice(-k); ds = ds.slice(-k); db = db.slice(-k);
+  }
+  const reb = e[0][1], rbb = e[0][2];
+  lineChart('c-equity', {
+    h: 340, area: true,
+    series: [
+      { name: 'Artha', color: cssv('--s1'), data: e.map(r => [r[0], r[1] / reb * 100]) },
+      { name: 'NIFTY 500', color: cssv('--s2'), data: e.map(r => [r[0], r[2] / rbb * 100]) }
+    ],
+    yFmt: v => '₹' + Math.round(v), tFmt: v => '₹' + v.toFixed(1)
+  });
+  lineChart('c-dd', {
+    h: 250, area: true, zero: true,
+    series: [
+      { name: 'Artha', color: cssv('--s1'), data: e.map((r, i) => [r[0], ds[i]]) },
+      { name: 'NIFTY 500', color: cssv('--s2'), data: e.map((r, i) => [r[0], db[i]]) }
+    ],
+    yFmt: pctF, tFmt: pctF
+  });
+  table('t-equity', ['Date', 'Artha ₹', 'NIFTY 500 ₹', 'Artha DD', 'Index DD'],
+    e.map((r, i) => [r[0], (r[1] / reb * 100).toFixed(1), (r[2] / rbb * 100).toFixed(1),
+      ds[i] + '%', db[i] + '%']));
+}
+
+const rc = document.getElementById('range');
+[['all', 'All'], ['10', '10y'], ['5', '5y'], ['3', '3y']].forEach(([v, l]) => {
+  const b = document.createElement('button');
+  b.textContent = l;
+  if (v === 'all') b.className = 'on';
+  b.onclick = () => {
+    range = v;
+    [...rc.children].forEach(c => { c.className = ''; });
+    b.className = 'on';
+    drawEquity();
+  };
+  rc.appendChild(b);
 });
 
-lineChart("c-dd", [
-  {name:"Artha", color:css("--s1"), area:true,
-   pts:D.equity.map((r,i) => [T(r[0]), D.dd_strategy[i]])},
-  {name:"NIFTY 500 TR", color:css("--s3"), area:true,
-   pts:D.equity.map((r,i) => [T(r[0]), D.dd_bench[i]])}
-], {h:250, fy:v => fmt(v,0) + "%", fv:v => fmt(v,1) + "%", zero:true, label:"Drawdown"});
+function drawAll() {
+  drawEquity();
+  lineChart('c-roll', {
+    h: 250, zero: true,
+    series: [{ name: 'Rolling Sharpe', color: cssv('--s1'), data: D.rolling_sharpe }],
+    yFmt: v => v.toFixed(1), tFmt: v => fmt(v)
+  });
+  lineChart('c-ledger', {
+    h: 230, area: true,
+    series: [{ name: 'Trials', color: cssv('--s1'), data: D.ledger_growth }],
+    yFmt: v => Math.round(v), tFmt: v => Math.round(v) + ' trials'
+  });
 
-lineChart("c-roll", [
-  {name:"rolling 1y Sharpe", color:css("--s1"),
-   pts:D.rolling_sharpe.map(r => [T(r[0]), r[1]])}
-], {h:230, fy:v => fmt(v,1), fv:v => fmt(v,2), zero:true, label:"Rolling Sharpe"});
+  barChart('c-constr', {
+    data: [...D.construction].sort((a, b) => a[1] - b[1]).map(r => [r[0], r[1]]),
+    highlight: 'minvar_tau50', vFmt: v => v.toFixed(3),
+    tip: r => {
+      const f = D.construction.find(x => x[0] === r[0]);
+      return `<div class="row"><span>Sharpe</span><b>${f[1].toFixed(3)}</b></div>` +
+        `<div class="row"><span>CAGR</span><b>${f[2]}%</b></div>` +
+        `<div class="row"><span>Max DD</span><b>${f[3]}%</b></div>` +
+        `<div class="row"><span>Turnover</span><b>${f[4]}×</b></div>`;
+    }
+  });
+  table('t-constr', ['Config', 'Sharpe', 'CAGR', 'Max DD', 'Turnover'],
+    D.construction.map(r => [r[0], r[1].toFixed(3), r[2] + '%', r[3] + '%', r[4] + '×']));
 
-const NICE = {equal_bands:"equal weight + bands", ivol_bands:"inverse-vol + bands",
-  minvar_bands:"min-var + bands", equal_tau25:"equal + τ0.25", equal_tau50:"equal + τ0.50",
-  equal_tau75:"equal + τ0.75", ivol_tau50:"inverse-vol + τ0.50",
-  minvar_tau50:"min-var + τ0.50 (live)"};
-barChart("c-constr", D.construction.slice().sort((a,b) => a[1] - b[1]).map(r => ({
-  label: NICE[r[0]] || r[0], v: r[1],
-  color: r[0] === "minvar_tau50" ? css("--s2") : css("--s1"),
-  detail: {"net Sharpe":fmt(r[1],3), "CAGR":r[2] + "%", "max drawdown":r[3] + "%",
-           "turnover":r[4] + "×"}
-})), {fv:v => fmt(v,3), label:"Construction comparison"});
+  barChart('c-zoo', {
+    data: [...D.zoo].sort((a, b) => a[1] - b[1]),
+    vFmt: v => v.toFixed(3), vLabel: 'net Sharpe'
+  });
+  table('t-zoo', ['Model', 'Net Sharpe'], D.zoo.map(r => [r[0], r[1].toFixed(3)]));
 
-barChart("c-leak", [
-  {label:"EMD — leaky (as published)", v:3.62, color:css("--crit"),
-   detail:{"net Sharpe":"3.62","information coefficient":"+0.413","tradeable":"no — sees the future"}},
-  {label:"CEEMDAN — leaky", v:3.62, color:css("--crit"),
-   detail:{"net Sharpe":"3.62","information coefficient":"+0.413","tradeable":"no"}},
-  {label:"wavelet — causal", v:0.38, color:css("--s2"),
-   detail:{"net Sharpe":"0.38","note":"mostly the stock's own drift"}},
-  {label:"EMD — causal (tradeable)", v:0.22, color:css("--s2"),
-   detail:{"net Sharpe":"0.22","information coefficient":"−0.038","tradeable":"yes"}},
-  {label:"raw returns, no transform", v:-0.06, color:css("--muted"),
-   detail:{"net Sharpe":"−0.06","note":"the honest starting point"}}
-], {fv:v => fmt(v,2), label:"Look-ahead gap"});
+  barChart('c-size', {
+    data: [...D.sizing].sort((a, b) => a[1] - b[1]).map(r => [r[0], r[1]]),
+    l: 130, vFmt: v => v.toFixed(3),
+    tip: r => {
+      const f = D.sizing.find(x => x[0] === r[0]);
+      return `<div class="row"><span>Net Sharpe</span><b>${f[1].toFixed(3)}</b></div>` +
+        `<div class="row"><span>DP charge</span><b>${f[2]} bps/sell</b></div>` +
+        `<div class="row"><span>Weight granularity</span><b>${f[3]}%</b></div>`;
+    }
+  });
+  table('t-size', ['Account', 'Net Sharpe', 'DP bps/sell', 'Granularity'],
+    D.sizing.map(r => [r[0], r[1].toFixed(3), r[2], r[3] + '%']));
+}
+drawAll();
 
-const ZOO = {always_long:"buy & hold (the floor)", ridge:"ridge regression",
-  lgbm:"gradient boosting", gru:"GRU", lstm:"LSTM", transformer:"transformer",
-  ensemble_mean:"ensemble of all five"};
-const floor = (D.zoo.find(r => r[0] === "always_long") || [null, 0])[1];
-barChart("c-zoo", D.zoo.map(r => ({
-  label: ZOO[r[0]] || r[0], v: r[1],
-  color: r[0] === "always_long" ? css("--s2") : css("--s1"),
-  detail: {"net Sharpe":fmt(r[1],3)}
-})), {fv:v => fmt(v,2), ref:floor, refLabel:"buy & hold", label:"Model zoo"});
-
-barChart("c-size", D.sizing.map(r => ({
-  label: "₹" + (parseInt(r[0].replace(/,/g,"")) / 100000) + " lakh",
-  v: r[1], color: css("--s1"),
-  detail: {"net Sharpe":fmt(r[1],3), "depository charge / exit":r[2] + " bps",
-           "one share =":r[3] + "% of a position"}
-})), {fv:v => fmt(v,3), l:130, label:"Capital sizing"});
-const ts = document.getElementById("t-size");
-const hr2 = ts.insertRow();
-["Account size","Net Sharpe","DP charge/exit","Weight granularity"].forEach(h => {
-  const th = document.createElement("th"); th.textContent = h; hr2.appendChild(th); });
-D.sizing.forEach(r => {
-  const tr = ts.insertRow();
-  tr.insertCell().textContent = "₹" + r[0];
-  tr.insertCell().textContent = fmt(r[1],3);
-  tr.insertCell().textContent = r[2] + " bps";
-  tr.insertCell().textContent = r[3] + "%";
+/* theme toggle: must beat the OS setting in both directions */
+document.getElementById('theme').onclick = () => {
+  const cur = document.documentElement.getAttribute('data-theme');
+  const dark = cur ? cur === 'dark' : matchMedia('(prefers-color-scheme:dark)').matches;
+  document.documentElement.setAttribute('data-theme', dark ? 'light' : 'dark');
+  requestAnimationFrame(drawAll);
+};
+matchMedia('(prefers-color-scheme:dark)').addEventListener('change', () => {
+  if (!document.documentElement.getAttribute('data-theme')) drawAll();
 });
 
-lineChart("c-ledger", [
-  {name:"cumulative experiments", color:css("--s4"), area:true,
-   pts:D.ledger_growth.map(r => [T(r[0]), r[1]])}
-], {h:200, lo:0, fy:v => fmt(v,0), fv:v => fmt(v,0) + " trials", label:"Ledger growth"});
+const links = [...document.querySelectorAll('.nav a[href^="#"]')];
+const spy = new IntersectionObserver(es => {
+  es.forEach(e => {
+    if (e.isIntersecting) {
+      links.forEach(l => l.classList.toggle('on', l.getAttribute('href') === '#' + e.target.id));
+    }
+  });
+}, { rootMargin: '-45% 0px -50% 0px' });
+document.querySelectorAll('section[id]').forEach(s => spy.observe(s));
+
+let rt;
+addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(drawAll, 120); });
 </script>
-</body>
-</html>
