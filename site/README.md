@@ -1,9 +1,13 @@
 # Public showcase site
 
-`index.html` is the public face of the project: what it does, the
-results with their honest caveats, six charts built from the
+`index.html` is the public face of the project: the results with their
+honest caveats, a 20-metric wall, seven charts built from the
 repository's own result files, the seven published nulls, the
-look-ahead finding, and the four times the project corrected itself.
+look-ahead finding, and the upgrade that was refused.
+
+Design brief: numbers and figures carry the page, prose does not. Every
+caption is one line. If a section needs a paragraph to justify itself,
+it is the wrong section.
 
 ## How it's built
 
@@ -43,5 +47,24 @@ state whatsoever.
 
 Preferred: connect the GitHub repository in the Vercel dashboard with
 root directory `site` — every push then redeploys automatically.
-Remember to disable Deployment Protection if the page should be
-publicly readable.
+
+Current live deployment (2026-07-22), pushed via the Vercel API rather
+than a git connection:
+
+    https://artha-nse-vivaanjain246-6796s-projects.vercel.app
+
+Two things learned the hard way, both of which cost a redeploy:
+
+1. **The API token can CREATE a project but not deploy again to an
+   existing one** — the second call returns 403 "You don't have
+   permission to create a Preview/Production Deployment for this
+   project". So an API deploy must carry the complete file set in the
+   very first call that creates the project. A name that has been used
+   once is effectively burned for further API deploys.
+2. **Deployment Protection is ON at the team level.** The URL answers
+   200 with Vercel's SSO login page, not the site. Turn it off at
+   Project → Settings → Deployment Protection → Vercel Authentication →
+   Disabled, or the page is unreadable to anyone but the account owner.
+
+Both disappear once the GitHub connection replaces API deploys, which is
+the reason to prefer it.
