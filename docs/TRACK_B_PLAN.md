@@ -45,6 +45,22 @@ Gate B1: 30 consecutive logged sessions with zero reconciliation breaks,
 zero unexplained divergence vs the research path (> 25bps/week
 unattributed), zero missed runs (holiday no-ops excluded).
 
+Status 2026-09-07 (ADR 0014): FIRST ATTEMPT FAILED, CLOCK RESTARTED.
+The first clock ran 2026-07-21 -> 2026-09-04 and failed the gate on two
+of its three clauses. (a) 18 of the window's 34 sessions were missed —
+the laptop was off at 19:00; reconciliation and rejections stayed clean
+throughout, so the ops machinery itself held. (b) Divergence vs the
+research path hit -2.06% cumulative, because the runbook's rebalance
+predicate `today in cal.week_last_days()` is true on EVERY session when
+the calendar ends at today: the book rebalanced daily against a weekly
+strategy, at ~5x the researched turnover. Fixed
+(`TradingCalendar.is_live_rebalance_day`, regression-tested), book
+archived, fresh clock day 1 = 2026-09-04, 25 positions, 0 rejects.
+The binding constraint on attempt two is machine uptime, not code:
+30 consecutive sessions needs the machine awake at 19:00 every trading
+day, or an always-on host. `StartWhenAvailable` recovers a late run on
+the same day, not a day the machine never woke.
+
 ## B2: Kite integration hardening (~1 session + VJ's credentials)
 
 1. Access-token morning flow: `scripts/kite_login.py` (request token ->

@@ -103,12 +103,17 @@ def main() -> int:
         (pl.col("equity") / pl.col("research_equity") - 1).alias("divergence")
     )
     last_div = float(joined["divergence"][-1]) if joined.height else 0.0
-    weeks = max(joined.height / 5.0, 1.0)
+    # weeks of EXPOSURE, from the calendar — not from the number of logged
+    # rows. Missed sessions shrink the row count while the book stays
+    # invested, and dividing by rows inflated divergence/week (found
+    # 2026-09-07: 16 rows over a 33-session window read as 3.2 weeks).
+    weeks = max(len(cal.sessions(lo, hi)) / 5.0, 1.0)
     weekly_div = abs(last_div) / weeks
 
     summary = {
         "window": f"{lo} -> {hi}",
         "live_days": live.height,
+        "sessions_in_window": len(cal.sessions(lo, hi)),
         "recon_breaks": recon_breaks,
         "pretrade_rejections": rejections,
         "cumulative_divergence": round(last_div, 6),

@@ -199,3 +199,45 @@ class TestAlertDurability:
         ]
         assert rows[-1]["severity"] == "critical"
         assert "KILL SWITCH" in rows[-1]["message"]
+
+
+class TestHeartbeatB1Clock:
+    """The B1 gate is "30 CONSECUTIVE logged sessions". Reporting the raw
+    row count instead let a clock with 18 holes advertise "16/30"."""
+
+    @staticmethod
+    def _heartbeat() -> object:
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location(
+            "run_heartbeat", Path("scripts/run_heartbeat.py")
+        )
+        assert spec is not None
+        assert spec.loader is not None
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+
+    def test_streak_resets_at_every_gap(self) -> None:
+        from datetime import date as _date
+
+        mod = self._heartbeat()
+        sessions = [_date(2026, 1, d) for d in (5, 6, 7, 8, 9, 12, 13)]
+        logged = {_date(2026, 1, d) for d in (5, 6, 9, 12, 13)}
+        # 5 rows logged, but the 7th/8th are holes: the gate sees 9-12-13
+        assert mod.consecutive_streak(sessions, logged) == 3  # type: ignore[attr-defined]
+
+    def test_streak_is_zero_when_the_latest_session_is_missed(self) -> None:
+        from datetime import date as _date
+
+        mod = self._heartbeat()
+        sessions = [_date(2026, 1, d) for d in (5, 6, 7)]
+        logged = {_date(2026, 1, 5), _date(2026, 1, 6)}
+        assert mod.consecutive_streak(sessions, logged) == 0  # type: ignore[attr-defined]
+
+    def test_streak_equals_length_when_nothing_is_missed(self) -> None:
+        from datetime import date as _date
+
+        mod = self._heartbeat()
+        sessions = [_date(2026, 1, d) for d in (5, 6, 7)]
+        assert mod.consecutive_streak(sessions, set(sessions)) == 3  # type: ignore[attr-defined]

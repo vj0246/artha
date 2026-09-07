@@ -27,6 +27,26 @@ design, cost model, QA discipline, verify-list).
 
 ### Post-v2 execution changelog (kept current so VJ can follow every change)
 
+- 2026-09-07 (live rebalance grid + B1 restart, ADR 0014): the paper runbook
+  asked `today in cal.week_last_days()` to decide whether to trade, but the
+  live calendar always ENDS at today, so today is always the last observed
+  session of its own week — the predicate was true every session and the book
+  rebalanced DAILY against a strategy validated on a weekly grid. All 16
+  logged sessions carry `rebalance: true`; turnover ran ~5x the researched
+  level and the weekly review's -2.06% cumulative divergence (25 bps/week
+  tolerance) was the symptom. Fixed with a decidable-at-the-close predicate
+  (`TradingCalendar.is_live_rebalance_day`: Friday, or five sessions since the
+  last rebalance so a Friday holiday shifts rather than skips), plus two
+  defects found alongside — the OMS price-band check was comparing the quote
+  dict against itself (dead guard, and the only protection against a bad Kite
+  tick at B2), and the heartbeat reported the B1 clock as a row count rather
+  than the consecutive streak the gate judges ("16/30" for a true streak of
+  1). B1 clock RESTARTED (old book archived); day 1 = 2026-09-04. Research
+  path unaffected — every other caller of `week_last_days` passes a full
+  historical panel, where it is correct. Also: the test suite now isolates
+  ARTHA_DATA_DIR, having been appending kill-switch alerts to the live
+  operational ledger.
+
 - 2026-07-21 (Track H: RL as control + self-improving agent, ADR 0013): RL enters as a CONTROL
   method, never a return predictor (Track D already showed the model zoo loses to buy-and-hold;
   DSR 0.20 leaves no credibility for lottery tickets). Algorithm chosen from the problem: no
@@ -172,17 +192,23 @@ The research-notes discipline is now mandatory: every phase ends with a short no
 
 P1 is only "done" if these v1 gates actually pass. Everything downstream inherits this layer.
 
-- [ ] Adjusted price series match two independent references for 20 well-known names; diffs
-      stored as regression tests in `tests/`.
-- [ ] PIT universe counts replay correctly against known NIFTY 500 constituent history at
-      several spot dates.
-- [ ] QA suite (zero/negative prices, high < low, calendar gaps, duplicate rows, CA-unexplained
-      outliers) green on the full backfill.
-- [ ] Both bhavcopy formats (pre/post UDiFF cutover) ingest through one interface.
-- [ ] Raw zone immutable, source hashes recorded.
-- [ ] Security master exists with sector mapping. Static current-sector mapping is acceptable
+**RUN 2026-07-12, verdict PASS** — evidence per box in `docs/research/p1-audit.md`.
+
+- [x] Adjusted price series match two independent references for 20 well-known names; diffs
+      stored as regression tests in `tests/`. (19 names, 108 samples, all within 2.5%; two real
+      adjustment bugs found and fixed.)
+- [x] PIT universe counts replay correctly against known NIFTY 500 constituent history at
+      several spot dates. (Amended by ADR 0004: liquidity-defined universe, 76% overlap with
+      the current snapshot — no scriptable constituent history exists.)
+- [x] QA suite (zero/negative prices, high < low, calendar gaps, duplicate rows, CA-unexplained
+      outliers) green on the full backfill. (7.10M rows, zero structural errors.)
+- [x] Both bhavcopy formats (pre/post UDiFF cutover) ingest through one interface.
+- [x] Raw zone immutable, source hashes recorded.
+- [x] Security master exists with sector mapping. Static current-sector mapping is acceptable
       for v2 (flag as a known limitation; point-in-time sector history is not freely available).
-- [ ] Benchmark series present: NIFTY 500 TRI, plus NIFTY 50 for market-model event studies.
+- [x] Benchmark series present: NIFTY 500 TRI, plus NIFTY 50 for market-model event studies.
+      (PARTIAL: price indices from 2012-08; no free TRI source, so a synthetic TRI —
+      PR return + trailing yield/252 — is used and labeled as such. Stays on the verify-list.)
 
 Any unchecked box is a P1 bug-fix task that precedes P2.
 
@@ -329,7 +355,10 @@ specified in v1 Section 12 and moves to Track B.
 
 Sequenced after P6. Content unchanged from v1 Sections 9 (engine + parity gate) and 13 (Zerodha
 Kite adapter, OMS with pre-trade checks and kill switch, paper adapter, reconciliation,
-scheduler, alerts, SEBI compliance verify items, 6-week clean paper gate, then Rs 1-2L real).
+scheduler, alerts, SEBI compliance verify items, 6-week clean paper gate, then real capital
+— **Rs 2L minimum, Rs 5L preferred**, correcting v1's "Rs 1-2L": the B3 readiness run
+(2026-07-19) measured Rs 1L as not viable, because the flat DP charge is 38 bps per sell
+and one share at the median book price is a 5.2% weight step).
 Broker account can be opened anytime; not blocking Track A. Stretch modules unchanged: NIFTY
 futures hedge overlay (the derivatives entry point), options module only as a future
 data-cost-gated decision, dashboard, LangGraph research agent with ledger integration.

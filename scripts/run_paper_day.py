@@ -18,8 +18,9 @@ import contextlib
 import json
 import os
 import sys
-from datetime import UTC, datetime
-from typing import cast
+from datetime import UTC, date, datetime
+from pathlib import Path
+from typing import Any, cast
 
 import polars as pl
 
@@ -53,17 +54,24 @@ def kite_ltp_override(quotes: dict[str, float], symbols: list[str]) -> str:
         return "curated_close"
 
 
-def trailing_book_vol(log_path: object) -> float | None:
+def read_live_log(log_path: Path) -> list[dict[str, Any]]:
+    """The non-dry rows of the daily log, oldest first. One read serves the
+    rerun guard, the rebalance grid, the drawdown peak and the vol target."""
+    if not log_path.exists():
+        return []
+    rows = []
+    with contextlib.suppress(json.JSONDecodeError):
+        rows = [
+            json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines() if line
+        ]
+    return [r for r in rows if not r.get("dry_run")]
+
+
+def trailing_book_vol(rows: list[dict[str, Any]]) -> float | None:
     """Annualized trailing vol of the paper book's FULLY-INVESTED returns,
     from the daily log (max of 21d and 63d windows, same convention as the
     backtester). None until 22 sessions exist."""
-    from pathlib import Path
-
-    path = Path(str(log_path))
-    if not path.exists():
-        return None
-    rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
-    eq = [(r["equity"], r["cash"]) for r in rows if not r.get("dry_run")]
+    eq = [(r["equity"], r["cash"]) for r in rows]
     if len(eq) < 22:
         return None
     from itertools import pairwise
@@ -105,17 +113,14 @@ def main() -> int:
     cal = TradingCalendar.from_frame(universe)
     today = cal.last  # latest session in the curated data
 
+    log_path = live_dir / "paper_log.jsonl"
+    prior_rows = read_live_log(log_path)
+
     # rerun guard: orders are idempotent, but the session log must hold
     # exactly one non-dry row per trade date (the B1 gate counts sessions)
-    log_file = live_dir / "paper_log.jsonl"
-    if not args.dry_run and log_file.exists():
-        for line in log_file.read_text(encoding="utf-8").splitlines():
-            if not line.strip():
-                continue
-            row = json.loads(line)
-            if not row.get("dry_run") and row.get("trade_date") == str(today):
-                print(f"session {today} already logged; nothing to do")
-                return 0
+    if not args.dry_run and any(r["trade_date"] == str(today) for r in prior_rows):
+        print(f"session {today} already logged; nothing to do")
+        return 0
     latest = universe.filter(pl.col("trade_date") == today)
     quotes = dict(zip(latest["canon_symbol"], latest["adj_close"], strict=True))
     adv = dict(zip(latest["canon_symbol"], latest["traded_value"], strict=True))
@@ -130,22 +135,21 @@ def main() -> int:
 
     closes = dict(quotes)  # curated closes kept as slippage reference
     quote_source = kite_ltp_override(quotes, sorted(broker.positions()))
-    is_rebalance_day = today in set(cal.week_last_days())
+    last_rebalance = next(
+        (
+            date.fromisoformat(r["trade_date"])
+            for r in reversed(prior_rows)
+            if r.get("rebalance", True)
+        ),
+        None,
+    )
+    is_rebalance_day = cal.is_live_rebalance_day(today, last_rebalance)
     equity = broker.cash() + sum(
         qty * quotes.get(sym, 0.0) for sym, qty in broker.positions().items()
     )
 
     # drawdown de-risk, enforced not just reported (B3; plan section 11)
-    log_path = live_dir / "paper_log.jsonl"
-    peak = equity
-    if log_path.exists():
-        with contextlib.suppress(json.JSONDecodeError):
-            rows = [
-                json.loads(line)
-                for line in log_path.read_text(encoding="utf-8").splitlines()
-                if line.strip()
-            ]
-            peak = max([equity] + [r["equity"] for r in rows if not r.get("dry_run")])
+    peak = max([equity] + [r["equity"] for r in prior_rows])
     gross_scalar, dd_freeze = drawdown_action(peak, equity)
     if dd_freeze:
         kill.freeze(f"drawdown breach: equity {equity:.0f} vs peak {peak:.0f}")
@@ -188,7 +192,7 @@ def main() -> int:
         targets = constructor.build(
             [(s, adv.get(s, 0.0)) for s in scored["canon_symbol"]],
             prior,
-            trailing_book_vol(live_dir / "paper_log.jsonl"),
+            trailing_book_vol(prior_rows),
             creport,
             adv_map=adv,
             vols=vols_in,
@@ -200,7 +204,11 @@ def main() -> int:
         if gross_scalar < 1.0:
             targets = {s: w * gross_scalar for s, w in targets.items()}
         orders = plan_orders(targets, broker.positions(), quotes, equity)
-        oms = Oms(broker, reference_prices=quotes, dry_run=args.dry_run)
+        # reference = the curated closes, NEVER the live quote dict the broker
+        # holds: passing `quotes` made reference and quote the same object, so
+        # the price-band check compared a number against itself and could never
+        # fire (found 2026-09-07; it is the only guard against a bad Kite tick).
+        oms = Oms(broker, reference_prices=closes, dry_run=args.dry_run)
         report = oms.execute(today, orders)
         for order, reason in report.rejected_pretrade:
             alert(f"pretrade reject {order.symbol} {order.side} {order.quantity}: {reason}")

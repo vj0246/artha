@@ -75,3 +75,24 @@ class TradingCalendar:
             else:
                 out.append(d)
         return out
+
+    def is_live_rebalance_day(self, day: date, last_rebalance: date | None) -> bool:
+        """Weekly rebalance decision for the LIVE path, decided at ``day``'s
+        close with no knowledge of future sessions.
+
+        ``week_last_days`` cannot answer this: the last session of an ISO week
+        is only knowable once the week is over, and the live calendar always
+        ends at today — so ``day in week_last_days()`` is true every single
+        session and the book rebalances daily (bug found 2026-09-07).
+
+        The knowable equivalent: Friday is the last session of every normal
+        NSE week, and a session count caps the cadence at one week so a Friday
+        holiday shifts the rebalance to that week's actual last session
+        instead of skipping the week entirely.
+        """
+        if last_rebalance is None:
+            return True
+        if day <= last_rebalance:
+            return False
+        elapsed = len(self.sessions(self.next_trading_day(last_rebalance), day))
+        return elapsed >= 5 or day.weekday() == 4

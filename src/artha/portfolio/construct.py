@@ -46,8 +46,9 @@ def production_constructor(capital: float, sector_map: dict[str, str]) -> "Const
     readiness) — change here, nowhere else.
 
     Since 2026-07-19 (Track C gate, docs/research/track-c-study.md):
-    Ledoit-Wolf min-var weights + Garleanu-Pedersen tau 0.5 — Sharpe 1.055
-    vs 0.960 equal+bands, maxDD -21% vs -27%, turnover 3.8x vs 5.2x."""
+    Ledoit-Wolf min-var weights + Garleanu-Pedersen tau 0.5 — net Sharpe
+    1.018 vs 0.963 equal+bands on the rebuilt panel (ADR 0008; the earlier
+    1.055/1.119 figures predate the position-cap cash-leak fix)."""
     return Constructor(capital=capital, sector_map=sector_map, scheme="minvar", trade_speed=0.5)
 
 

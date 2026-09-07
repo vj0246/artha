@@ -12,7 +12,10 @@
   (E1 null, E2 signal-health live, E3 schedules registered).
 - Production config: production_constructor() = LW minvar + GP tau 0.5,
   Sharpe 1.018 net (post-hardening; ADR 0008 has the 1.119->1.018
-  correction history). DSR 0.20 vs 89-trial ledger — cite this.
+  correction history). DSR 0.20 vs the 89-trial ledger as published in the
+  report; the E2 monitor's live refresh reads 0.163 vs 111 trials
+  (2026-09-06) as scheduled re-runs keep adding trials. Cite the published
+  pair for the report, the live pair for current state — never mix them.
 - 10-finding code review 2026-07-20 fixed (fbceca4) + studies rerun.
 - C7 blend candidate HELD (ADR 0011): PBO 0.500 + family SPA 0.655 failed
   the pre-registered gates. SPA claim corrected project-wide: the shipped
@@ -31,9 +34,22 @@
   to Interactive (works only while logged in). A long cycle launched by
   hand into a transient console can die 0xC000013A — start the B1 clock
   with a direct `uv run` instead, not `schtasks /Run`.
-- B1 clock STARTED 2026-07-22: first dry_run=false paper session is
-  trade_date 2026-07-21, 25 positions, reconcile_ok, 0 rejects. Day 1/30.
-- Open signal-health warning: dist_52w_low PSI 0.61 > 0.25 (feature drift).
+- B1 clock RESTARTED 2026-09-07 (ADR 0014). Attempt one (2026-07-21 ->
+  2026-09-04) FAILED the gate: 18 of 34 sessions missed (laptop off at
+  19:00) and -2.06% divergence vs the research path, because
+  `today in cal.week_last_days()` is true on EVERY session when the
+  calendar ends at today — the book rebalanced DAILY against a weekly
+  strategy. Use `TradingCalendar.is_live_rebalance_day` for any live
+  grid decision; `week_last_days()` is only correct on a full historical
+  panel. Attempt two: day 1 = trade_date 2026-09-04, 25 positions,
+  reconcile_ok, 0 rejects. Binding constraint is now machine uptime.
+- Heartbeat `b1_progress` is the CONSECUTIVE streak (the gate metric),
+  not the row count. `alerts.jsonl` criticals before 2026-09-07 include
+  test-suite artifacts; the suite now isolates ARTHA_DATA_DIR
+  (tests/conftest.py) so a pytest run no longer writes the live ledger.
+- Signal health as of 2026-09-06: IC 63d 0.040 / 252d 0.041 healthy, PSI
+  worst 0.089 (the 0.61 dist_52w_low drift cleared after the
+  outlier-robust PSI fix, 382baa5), DSR 0.163 vs a 111-trial ledger.
 - Track H (RL, ADR 0013): RL is CONTROL not prediction here. H1 null —
   LinUCB tau control ties the fixed constant, PBO 0.93, flat objective
   surface. H2 live — research agent learns idea-family value from the

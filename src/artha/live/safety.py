@@ -1,8 +1,12 @@
 """Kill switch, reconciliation, and alerts (plan v1 section 13.2).
 
 - KillSwitch: a freeze file halts all trading; ``flatten`` sells every
-  position. Auto-triggers on reconciliation mismatch or a daily PnL
-  breach.
+  position. Auto-triggers on a reconciliation mismatch, a constraint
+  violation, or the FLATTEN_DD drawdown. There is deliberately NO
+  daily-PnL trigger: drawdown-from-peak is the plan's section 11 limit,
+  and a single-day threshold on top of it would halt the book on ordinary
+  index gap-downs (the unused PNL_BREACH constant and the docstring that
+  advertised it were removed 2026-09-07).
 - reconcile: OMS book vs broker positions/cash; ANY mismatch halts.
 - alert: Telegram when TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID are set,
   stderr otherwise - alerting must never crash the runbook.
@@ -21,7 +25,6 @@ import httpx
 from artha.live.adapters.base import BrokerAdapter
 from artha.live.oms import PlannedOrder, client_order_id
 
-PNL_BREACH = -0.05  # daily loss that freezes trading
 DERISK_DD = 0.10  # drawdown from peak that halves gross (plan section 11)
 FLATTEN_DD = 0.15  # drawdown from peak that freezes trading
 

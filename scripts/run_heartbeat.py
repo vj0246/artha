@@ -39,7 +39,28 @@ from artha.live.safety import alert
 
 STALE_SESSIONS_ALERT = 1  # book may lag the calendar by at most this many
 CYCLE_LOG_STALE_HOURS = 30  # cycle.log untouched for longer than this = suspicious
-EXPECTED_TASKS = ("artha-daily", "artha-weekly", "artha-monthly", "artha-quarterly")
+EXPECTED_TASKS = (
+    "artha-daily",
+    "artha-heartbeat",
+    "artha-weekly",
+    "artha-monthly",
+    "artha-quarterly",
+)
+B1_TARGET_SESSIONS = 30
+
+
+def consecutive_streak(sessions: list[date], logged: set[date]) -> int:
+    """Sessions logged since the last GAP — the number the B1 gate actually
+    judges ("30 consecutive logged sessions").
+
+    Reporting the raw row count instead overstated progress badly: 16 rows
+    with 18 holes read as "16/30" while the true streak was 1 (found
+    2026-09-07). A gate metric must never flatter the thing it gates.
+    """
+    streak = 0
+    for session in sessions:
+        streak = streak + 1 if session in logged else 0
+    return streak
 
 
 def _rows(path: Any) -> list[dict[str, Any]]:
@@ -111,11 +132,14 @@ def main() -> int:
 
     # --- missed sessions since the clock started (B1 gate counts consecutive)
     missed: list[str] = []
+    streak = 0
     if live_rows:
         first_live = date.fromisoformat(live_rows[0]["trade_date"])
         logged = {date.fromisoformat(r["trade_date"]) for r in live_rows}
         end = last_live or first_live
-        missed = [str(s) for s in sessions if first_live <= s <= end and s not in logged]
+        window = [s for s in sessions if first_live <= s <= end]
+        missed = [str(s) for s in window if s not in logged]
+        streak = consecutive_streak(window, logged)
         if missed:
             problems.append(f"{len(missed)} missed session(s) inside the B1 window: {missed[:5]}")
 
@@ -156,7 +180,8 @@ def main() -> int:
         "last_live_session": str(last_live) if last_live else None,
         "sessions_behind": lag,
         "b1_clock": clock_state,
-        "b1_progress": f"{len(live_rows)}/30",
+        "b1_progress": f"{streak}/{B1_TARGET_SESSIONS} consecutive",
+        "b1_sessions_logged": len(live_rows),
         "missed_sessions": missed,
         "frozen": frozen,
         "freeze_reason": freeze_reason,
