@@ -41,7 +41,14 @@ design, cost model, QA discipline, verify-list).
   dict against itself (dead guard, and the only protection against a bad Kite
   tick at B2), and the heartbeat reported the B1 clock as a row count rather
   than the consecutive streak the gate judges ("16/30" for a true streak of
-  1). B1 clock RESTARTED (old book archived); day 1 = 2026-09-04. Research
+  1). Pulling the same thread found two more live-vs-research breaks, both
+  flattering the live log: the runbook scored AND filled on the same close
+  (no exec_lag=1, so every position was bought at the very close that
+  generated its signal — a fill no broker can give), and it fed the
+  participation cap and impact model one session's raw traded value where
+  the backtester uses a 21-day median. The runbook now carries two dates —
+  scored on `signal_date`, filled at `today` — and logs both. B1 clock
+  RESTARTED (old book archived); day 1 = 2026-09-04. Research
   path unaffected — every other caller of `week_last_days` passes a full
   historical panel, where it is correct. Also: the test suite now isolates
   ARTHA_DATA_DIR, having been appending kill-switch alerts to the live

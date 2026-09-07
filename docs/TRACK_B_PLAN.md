@@ -53,8 +53,13 @@ throughout, so the ops machinery itself held. (b) Divergence vs the
 research path hit -2.06% cumulative, because the runbook's rebalance
 predicate `today in cal.week_last_days()` is true on EVERY session when
 the calendar ends at today: the book rebalanced daily against a weekly
-strategy, at ~5x the researched turnover. Fixed
-(`TradingCalendar.is_live_rebalance_day`, regression-tested), book
+strategy, at ~5x the researched turnover. Two further parity breaks fell
+out of the same review: the runbook scored and filled on the same close
+(the backtester runs exec_lag=1, so the live book was buying at the very
+close that generated its signal), and it fed the participation cap and
+impact model a single session's raw traded value where the backtester
+uses a 21-day median. All three fixed and regression-tested; the runbook
+now carries two dates (`signal_date` -> `trade_date`) and logs both. Book
 archived, fresh clock day 1 = 2026-09-04, 25 positions, 0 rejects.
 The binding constraint on attempt two is machine uptime, not code:
 30 consecutive sessions needs the machine awake at 19:00 every trading

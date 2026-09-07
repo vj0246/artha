@@ -9,6 +9,13 @@ weekly grid, holds otherwise) -> plan orders -> pre-trade checks -> submit
 to the paper broker (idempotent) -> reconcile -> append the daily log that
 the 6-week clean-paper gate is judged on.
 
+Two dates, never one (ADR 0014). The book is scored on ``signal_date``
+(the previous session) and filled at ``today``'s close, reproducing the
+backtester's ``exec_lag=1`` and the feature registry's contract that a
+value knowable at t's close is tradeable no earlier than t+1. Everything
+read for the DECISION is dated signal_date; only prices and fills are
+dated today. Mixing the two is what makes a live log flatter itself.
+
 The 6-week gate clock starts at the first logged day and requires zero
 reconciliation breaks throughout.
 """
@@ -24,6 +31,7 @@ from typing import Any, cast
 
 import polars as pl
 
+from artha.backtest.vectorized import ADV_WINDOW
 from artha.config import load_settings
 from artha.data.calendar import TradingCalendar
 from artha.data.universe import pit_universe
@@ -52,6 +60,27 @@ def kite_ltp_override(quotes: dict[str, float], symbols: list[str]) -> str:
     except Exception as exc:
         alert(f"kite ltp unavailable, using curated closes: {exc}")
         return "curated_close"
+
+
+def adv_median(universe: pl.DataFrame, asof: date) -> dict[str, float]:
+    """21-day median traded value per name as of ``asof`` — the SAME
+    quantity ``vectorized.py`` feeds the participation cap and the impact
+    model. The runbook previously passed a single session's raw traded
+    value, so the live cap and live costs were driven by a noisier input
+    than anything that was ever validated (found 2026-09-07)."""
+    window_start = date.fromordinal(asof.toordinal() - 2 * ADV_WINDOW - 30)
+    rows = (
+        universe.filter(pl.col("trade_date").is_between(window_start, asof))
+        .sort("canon_symbol", "trade_date")
+        .with_columns(
+            pl.col("traded_value")
+            .rolling_median(window_size=ADV_WINDOW, min_samples=1)
+            .over("canon_symbol")
+            .alias("adv_value")
+        )
+        .filter(pl.col("trade_date") == asof)
+    )
+    return dict(zip(rows["canon_symbol"], rows["adv_value"], strict=True))
 
 
 def read_live_log(log_path: Path) -> list[dict[str, Any]]:
@@ -111,7 +140,14 @@ def main() -> int:
     panel = pl.read_parquet(settings.curated_dir / "panel.parquet")
     universe = pit_universe(panel)
     cal = TradingCalendar.from_frame(universe)
-    today = cal.last  # latest session in the curated data
+    today = cal.last  # latest session in the curated data — the FILL date
+    # Execution lag, matching the backtester's exec_lag=1 and the feature
+    # registry's contract ("knowable at t's close, tradeable no earlier than
+    # t+1"). The live path used to score AND fill on `today`, buying at the
+    # very close that produced the signal — one free day of momentum the
+    # research path never gets, in the log that is supposed to be evidence
+    # FOR the research path (found 2026-09-07).
+    signal_date = cal.prev_trading_day(today)
 
     log_path = live_dir / "paper_log.jsonl"
     prior_rows = read_live_log(log_path)
@@ -123,7 +159,7 @@ def main() -> int:
         return 0
     latest = universe.filter(pl.col("trade_date") == today)
     quotes = dict(zip(latest["canon_symbol"], latest["adj_close"], strict=True))
-    adv = dict(zip(latest["canon_symbol"], latest["traded_value"], strict=True))
+    adv = adv_median(universe, signal_date)
 
     broker = PaperBroker(
         live_dir / "paper_state.json",
@@ -135,15 +171,16 @@ def main() -> int:
 
     closes = dict(quotes)  # curated closes kept as slippage reference
     quote_source = kite_ltp_override(quotes, sorted(broker.positions()))
-    last_rebalance = next(
+    # the weekly grid runs on SIGNAL dates; each one fills a session later
+    last_signal = next(
         (
-            date.fromisoformat(r["trade_date"])
+            date.fromisoformat(r.get("signal_date", r["trade_date"]))
             for r in reversed(prior_rows)
             if r.get("rebalance", True)
         ),
         None,
     )
-    is_rebalance_day = cal.is_live_rebalance_day(today, last_rebalance)
+    is_rebalance_day = cal.is_live_rebalance_day(signal_date, last_signal)
     equity = broker.cash() + sum(
         qty * quotes.get(sym, 0.0) for sym, qty in broker.positions().items()
     )
@@ -164,10 +201,13 @@ def main() -> int:
         sector_map = {
             r["canon_symbol"]: r["industry"] for r in master.iter_rows(named=True) if r["industry"]
         }
-        signal = momentum_12_1(panel).filter(pl.col("trade_date") == today)
+        # scored on the SIGNAL date's close, filled at today's — anything
+        # read here must be dated signal_date, or the lag is only cosmetic
+        signal = momentum_12_1(panel).filter(pl.col("trade_date") == signal_date)
+        eligible = universe.filter(pl.col("trade_date") == signal_date)
         scored = (
             signal.join(
-                latest.select("canon_symbol", "in_universe"), on="canon_symbol", how="inner"
+                eligible.select("canon_symbol", "in_universe"), on="canon_symbol", how="inner"
             )
             .filter(pl.col("in_universe"))
             .sort("score", descending=True)
@@ -180,7 +220,7 @@ def main() -> int:
         }
         if quote_source == "kite_ltp":
             kite_ltp_override(quotes, sorted(set(scored["canon_symbol"])))
-        vols_in, cov_in = risk_inputs(universe, list(scored["canon_symbol"]), today)
+        vols_in, cov_in = risk_inputs(universe, list(scored["canon_symbol"]), signal_date)
         n_picks = scored.height
         if cov_in is None:
             scheme_used = "equal_fallback"
@@ -242,7 +282,8 @@ def main() -> int:
 
     log_row = {
         "run_at": datetime.now(UTC).isoformat(),
-        "trade_date": str(today),
+        "trade_date": str(today),  # the FILL session
+        "signal_date": str(signal_date),  # the session the book was scored on
         "rebalance": is_rebalance_day,
         "equity": equity,
         "cash": broker.cash(),

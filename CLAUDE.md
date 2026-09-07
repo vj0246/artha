@@ -41,8 +41,14 @@
   calendar ends at today — the book rebalanced DAILY against a weekly
   strategy. Use `TradingCalendar.is_live_rebalance_day` for any live
   grid decision; `week_last_days()` is only correct on a full historical
-  panel. Attempt two: day 1 = trade_date 2026-09-04, 25 positions,
-  reconcile_ok, 0 rejects. Binding constraint is now machine uptime.
+  panel. Same pass fixed two more live-vs-research breaks: the runbook
+  scored and filled on the SAME close (no exec_lag=1) and fed the ADV cap
+  a single session's traded value instead of the 21-day median. The
+  runbook now carries TWO dates — scored on `signal_date` (previous
+  session), filled at `today` — and logs both. Anything read for the
+  DECISION must be dated signal_date; only quotes and fills use today.
+  Attempt two: day 1 = trade_date 2026-09-04 (signal 2026-09-03), 25
+  positions, reconcile_ok, 0 rejects. Binding constraint is machine uptime.
 - Heartbeat `b1_progress` is the CONSECUTIVE streak (the gate metric),
   not the row count. `alerts.jsonl` criticals before 2026-09-07 include
   test-suite artifacts; the suite now isolates ARTHA_DATA_DIR

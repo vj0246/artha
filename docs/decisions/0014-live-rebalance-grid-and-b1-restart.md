@@ -1,4 +1,4 @@
-# ADR 0014: the live rebalance grid was daily, not weekly — restart the B1 clock
+# ADR 0014: the live path did not match the research path — restart the B1 clock
 
 Date: 2026-09-07
 Status: accepted
@@ -33,6 +33,23 @@ weekly, and the 2026-09-05 weekly review reported cumulative divergence
 -2.06% vs the research replay, breaking the 25 bps/week tolerance. The
 mechanism is ~5x the researched turnover paying ~5x the researched costs.
 
+Pulling that thread found two more live-vs-research parity breaks in the
+same runbook, both in the same direction — the live log flattering itself:
+
+- **No execution lag.** The runbook scored the book on `today`'s close and
+  filled at `today`'s close. The backtester runs `exec_lag=1`, and the
+  feature registry states the contract in as many words: "knowable at t's
+  close and tradeable no earlier than t+1 (the backtester's execution lag
+  enforces that side)". The live path did not enforce that side, so every
+  position was bought at the very close whose prices generated the signal —
+  one free day of momentum continuation per rebalance, recorded in the log
+  that exists to be evidence FOR the research path. A real broker cannot
+  fill at a close that has already happened.
+- **Wrong ADV.** The participation cap and the cost model's impact term were
+  fed a single session's raw traded value; the backtester feeds both a
+  21-day rolling median. The live cap and live costs were therefore driven
+  by a noisier input than anything that was validated.
+
 Two smaller defects found in the same pass:
 
 - `Oms(reference_prices=quotes)` handed the OMS the same dict object the
@@ -53,16 +70,23 @@ Two smaller defects found in the same pass:
    session rather than skipping the week, and it also caps the cadence after
    a machine-off gap. Regression-tested by replaying the calendar one
    session at a time, exactly as the runbook sees it.
-2. Pass the curated closes as the OMS reference prices.
-3. Report the B1 clock as the consecutive streak; a gate metric must not
+2. Split the runbook's one date into two: the book is scored on
+   `signal_date` (the previous session) and filled at `today`'s close.
+   Signal, universe eligibility, risk inputs and ADV are all dated
+   `signal_date`; only quotes and fills are dated `today`. Both dates are
+   written to every log row, so the lag is auditable rather than asserted.
+   ADV comes from `adv_median`, sharing `ADV_WINDOW` with the backtester by
+   import so the two cannot drift apart again.
+3. Pass the curated closes as the OMS reference prices.
+4. Report the B1 clock as the consecutive streak; a gate metric must not
    flatter the thing it gates.
-4. **Restart the B1 clock.** The 16 logged sessions are evidence about a
+5. **Restart the B1 clock.** The 16 logged sessions are evidence about a
    process we no longer run, and the window already failed the gate's
    zero-missed-runs clause 18 times over. Book, order log and weekly review
    archived to `reports/paper/archive-dailyrebalance-20260907/`; the fresh
    clock starts at trade_date 2026-09-04, 25 positions, reconcile_ok, day
    1/30. Same convention as `archive-equalbands-20260719`.
-5. Isolate `ARTHA_DATA_DIR` for the whole test suite. A plain `pytest` run
+6. Isolate `ARTHA_DATA_DIR` for the whole test suite. A plain `pytest` run
    was appending to the live `alerts.jsonl` — 13 rows, five of them
    "KILL SWITCH: trading frozen" — inflating the very critical count the
    heartbeat reports. The historical file is append-only and is left as is;
@@ -77,6 +101,11 @@ Two smaller defects found in the same pass:
   returns LW min-var + GP tau 0.5. This ADR changes *when* the live path
   trades, restoring it to what Track C actually validated. No re-run of the
   research studies is required, because the research path never had the bug.
+- The execution lag makes the live book trail the research book by one
+  session at every rebalance, which is exactly the point: the weekly review's
+  divergence number now measures real implementation slippage instead of a
+  systematic one-day head start. Expect the fresh clock's divergence to be
+  smaller AND more meaningful than the archived -2.06%.
 - The missed-session problem is unchanged and remains VJ's: 18 of 34
   sessions in the old window were lost to a laptop that was off at 19:00.
   A 30-session streak needs the machine awake on every trading day, or an
