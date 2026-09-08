@@ -45,15 +45,25 @@ state whatsoever.
 
 ## Deploying
 
-Preferred: connect the GitHub repository in the Vercel dashboard with
-root directory `site` — every push then redeploys automatically.
+**There is exactly ONE Artha site. Redeploy it; never create a second.**
 
-Current live deployment (2026-07-22), pushed via the Vercel API rather
-than a git connection:
+    https://artha-quant.vercel.app
 
-    https://artha-nse-vivaanjain246-6796s-projects.vercel.app
+Verified live 2026-09-08 and byte-identical to `site/index.html` at
+commit a658a0c, so the deployed page is current. It is also the
+`homepage` on the GitHub repo — keep those two in agreement.
 
-Two things learned the hard way, both of which cost a redeploy:
+Preferred mechanism: connect the GitHub repository in the Vercel
+dashboard with root directory `site`, so every push redeploys.
+
+Superseded: `artha-nse-vivaanjain246-6796s-projects.vercel.app`, the
+2026-07-22 API-pushed deployment this file used to name as current. It
+never served the site — the URL answers 200 with Vercel's SSO login page
+because Deployment Protection was never turned off (see below). Treat it
+as dead and delete the project; do not redeploy to it.
+
+Two things learned the hard way on that API deploy, both of which cost a
+redeploy:
 
 1. **The API token can CREATE a project but not deploy again to an
    existing one** — the second call returns 403 "You don't have
