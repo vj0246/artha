@@ -28,6 +28,16 @@ dist/
 *.log
 logs/
 
+# Internal working documents — kept local, never published.
+# The plan, the per-track roadmaps, the runbook and the agent instructions
+# carry sequencing, funding levels and operational detail that is nobody
+# else's business. README.md and site/ are the public face; everything the
+# repo needs to BUILD and RUN stays tracked.
+# NOTE: these were tracked until 2026-09-08 and remain readable in commits
+# before that. Untracking hides them going forward, not retroactively.
+/docs/
+/CLAUDE.md
+
 # OS / editor
 .DS_Store
 Thumbs.db

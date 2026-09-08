@@ -1,6 +1,8 @@
 # Artha
 
 [![ci](https://github.com/vj0246/artha/actions/workflows/ci.yml/badge.svg)](https://github.com/vj0246/artha/actions/workflows/ci.yml)
+&nbsp;·&nbsp;
+**[Results, charts and every null → artha-quant.vercel.app](https://artha-quant.vercel.app)**
 
 **A systematic equity trading system for Indian markets — researched,
 validated, and actually operated, on ₹0 of paid data.**
@@ -8,6 +10,9 @@ validated, and actually operated, on ₹0 of paid data.**
 It runs by itself at 7pm every evening. It knows when it has been
 fooled. And the most valuable thing it produced is a list of things
 that *don't* work.
+
+11.7k lines of typed Python · 249 tests · `mypy --strict` · a look-ahead
+suite and a backtest-vs-engine parity gate that both block CI.
 
 ---
 
@@ -87,8 +92,8 @@ Nulls are the expensive, useful output of research. These are ours:
    the agent itself reporting that the objective surface is flat and
    Gârleanu-Pedersen's constant is already near-optimal.
 
-**And the headline finding, written up as a working paper:**
-[decomposition preprocessing is look-ahead](docs/research/PAPER_leaky_decomposition.md).
+**And the headline finding, written up as a working paper: decomposition
+preprocessing is look-ahead.**
 A large literature reports Sharpe 3+ on daily equity forecasting after
 EMD/CEEMDAN preprocessing. We reproduced those numbers *exactly* — IC
 0.41, Sharpe 3.6 — then recomputed the identical transform causally, so
@@ -121,6 +126,24 @@ A research system's credibility is how it behaves when it's wrong.
   pre-registered gates (PBO 0.500, SPA 0.655). It was **held, not
   shipped** — and the friendlier re-test that might have rescued it was
   deliberately not run.
+- **The live path drifted from the researched one, and the paper clock
+  was thrown away.** A review of the running system found the runbook
+  asking `today in calendar.week_last_days()` to decide whether to
+  trade. On a calendar built from data ending at today, today is always
+  the last observed session of its own week — so the predicate was true
+  every single session and the book was rebalancing **daily** against a
+  strategy validated weekly, at roughly five times the researched
+  turnover. Two more breaks fell out of the same thread: the runbook
+  scored and filled on the *same* close, giving itself a day of momentum
+  no broker could deliver, and it fed the participation cap a single
+  session's traded value where the backtest uses a 21-day median. The
+  research path never had any of this — every other caller passes a full
+  historical panel, where the same helper means what it says. All three
+  are fixed and regression-tested, the runbook now carries two dates
+  (scored on `signal_date`, filled at `trade_date`) and logs both, and
+  **six weeks of accumulated paper evidence was archived and the clock
+  restarted from zero**, because evidence about a process you no longer
+  run is not evidence.
 
 ---
 
@@ -177,7 +200,7 @@ live book.
 
 ```bash
 uv sync
-uv run pytest                               # 243 tests: unit, lookahead, parity
+uv run pytest                               # 249 tests: unit, lookahead, parity
 
 # rebuild the world from primary sources (hours, all resumable)
 uv run python scripts/backfill_bhavcopy.py 2010-01-01 <today>
@@ -195,23 +218,30 @@ uv run python scripts/run_dashboard.py      # http://127.0.0.1:8787
 uv run python scripts/run_heartbeat.py      # ops health
 ```
 
-| Document | What it's for |
-|---|---|
-| [HANDBOOK](docs/HANDBOOK.md) | Every folder, file and decision; from-scratch setup; the gotchas that cost real time |
-| [SYSTEM_OVERVIEW](docs/SYSTEM_OVERVIEW.md) | The condensed map |
-| [RESEARCH REPORT](docs/research/ARTHA_RESEARCH_REPORT.md) | The full study, Parts I & II |
-| [WORKING PAPER](docs/research/PAPER_leaky_decomposition.md) | The look-ahead finding |
-| [RUNBOOK](docs/RUNBOOK.md) | Daily operations, alarms, kill switch |
-| [PROJECT_PLAN](docs/PROJECT_PLAN.md) | Authoritative plan + full execution history |
-| [decisions/](docs/decisions/) | 13 ADRs — every irreversible choice, with its evidence |
-
-The HANDBOOK is written so a stranger can carry this project forward
-with no verbal handover.
-
 The ops dashboard is **localhost-only by design**: it shows live
 positions, equity and operational state with no authentication, so it is
-not deployed anywhere
-([ADR 0012](docs/decisions/0012-track-g-ops-hygiene.md)).
+deployed nowhere.
+
+---
+
+## Where the writing lives
+
+Every result on this page is backed by a written note — question,
+method, result, decision — produced at the end of each phase, plus an
+architecture-decision record for every irreversible choice and a working
+paper on the look-ahead finding. That corpus stays private: it also
+carries sequencing, funding levels and live operational detail.
+
+What is public:
+
+- **[artha-quant.vercel.app](https://artha-quant.vercel.app)** — the
+  results with their caveats, a 20-metric wall, seven charts built
+  directly from the repository's own result files, and every null.
+- **This repository** — the full system that produced them. The code is
+  the argument; the site is the summary.
+
+Available on request for anyone evaluating the work: the research report
+(Parts I & II), the working paper, and the decision log.
 
 ---
 
@@ -225,6 +255,6 @@ months before the free API rate-limited us; and DSR 0.20 counts every
 single-name experiment against the cross-sectional book, which is
 conservative — but the direction is the point.
 
-Every one is tracked with a confirmation date in the plan's verify-list.
-Nothing here is hidden, because a limitation you disclose can't ambush
-you later.
+Every one carries a confirmation date on an internal verify-list that is
+re-checked against primary sources rather than remembered. Nothing here
+is hidden, because a limitation you disclose can't ambush you later.
