@@ -56,11 +56,20 @@ commit a658a0c, so the deployed page is current. It is also the
 Preferred mechanism: connect the GitHub repository in the Vercel
 dashboard with root directory `site`, so every push redeploys.
 
-Superseded: `artha-nse-vivaanjain246-6796s-projects.vercel.app`, the
-2026-07-22 API-pushed deployment this file used to name as current. It
-never served the site — the URL answers 200 with Vercel's SSO login page
-because Deployment Protection was never turned off (see below). Treat it
-as dead and delete the project; do not redeploy to it.
+Three Vercel projects were built from this one repo. Keep `artha`;
+delete the other two:
+
+| Project | URL | State |
+|---|---|---|
+| `artha` | `artha-quant.vercel.app` | **KEEP** — git-linked, serves the current build |
+| `artha-quant` | `artha-quant-woad.vercel.app` | delete — git-linked to the same repo, so every push double-builds, and the URL 404s (root directory never set to `site`) |
+| `artha-nse` | `artha-nse.vercel.app` | delete — 2026-07-22 API push, no git link, still publicly serving a STALE July build (19KB vs the current 43KB) |
+
+`artha-nse` is the one worth removing first: it is a second, older, public
+copy of these results with none of the corrections since July. Its
+project-scoped URL (`artha-nse-vivaanjain246-6796s-projects.vercel.app`)
+sits behind Vercel Authentication, but the short alias does not, so the
+stale page is readable by anyone who finds it.
 
 Two things learned the hard way on that API deploy, both of which cost a
 redeploy:
