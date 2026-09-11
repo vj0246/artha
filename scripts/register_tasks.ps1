@@ -69,7 +69,10 @@ $tasks = @(
     @{ Name = "artha-heartbeat"; Wrapper = "artha_heartbeat.cmd"; Trigger = "daily";     Time = "21:00" },
     @{ Name = "artha-weekly";    Wrapper = "artha_weekly.cmd";    Trigger = "weekly";    Time = "10:00" },
     @{ Name = "artha-monthly";   Wrapper = "artha_monthly.cmd";   Trigger = "monthly";   Time = "10:00" },
-    @{ Name = "artha-quarterly"; Wrapper = "artha_quarterly.cmd"; Trigger = "quarterly"; Time = "10:00" }
+    # 14:00, not 10:00: both interval triggers anchor on the registration date, so
+    # every 12th week quarterly lands on monthly's Sunday. At the same minute they
+    # would both run run_spa.py and fight the full construction study for the CPU.
+    @{ Name = "artha-quarterly"; Wrapper = "artha_quarterly.cmd"; Trigger = "quarterly"; Time = "14:00" }
 )
 
 $settings = New-ScheduledTaskSettingsSet `
