@@ -241,3 +241,41 @@ class TestHeartbeatB1Clock:
         mod = self._heartbeat()
         sessions = [_date(2026, 1, d) for d in (5, 6, 7)]
         assert mod.consecutive_streak(sessions, set(sessions)) == 3  # type: ignore[attr-defined]
+
+
+class TestWeeklyReviewAnchor:
+    """Regression (2026-09-12): the research replay was compounded from the
+    first live date INCLUSIVE, charging a cash-only live book for a day of
+    return it never earned — 0.73pp of the first week's -1.09% flag."""
+
+    @staticmethod
+    def _review() -> object:
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location(
+            "run_weekly_review", Path("scripts/run_weekly_review.py")
+        )
+        assert spec is not None
+        assert spec.loader is not None
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+
+    def test_anchor_day_return_is_excluded(self) -> None:
+        from datetime import date as _date
+
+        import polars as pl
+
+        daily = pl.DataFrame(
+            {
+                "trade_date": [_date(2026, 9, d) for d in (3, 4, 7, 8)],
+                "net_return": [0.05, 0.10, 0.02, -0.01],
+            }
+        )
+        fn = self._review().anchored_research_equity  # type: ignore[attr-defined]
+        out = fn(daily, _date(2026, 9, 4), _date(2026, 9, 8), 100.0)
+        equity = out["research_equity"].to_list()
+        assert out.height == 3  # the day before lo is outside the window
+        assert equity[0] == pytest.approx(100.0)  # lo's +10% is NOT credited
+        assert equity[1] == pytest.approx(102.0)
+        assert equity[2] == pytest.approx(102.0 * 0.99)

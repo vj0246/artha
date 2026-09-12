@@ -28,6 +28,25 @@ from artha.portfolio.construct import ConstraintReport, production_constructor
 DIVERGENCE_TOL_WEEKLY = 0.0025  # 25 bps/week unattributed = investigate
 
 
+def anchored_research_equity(
+    daily: pl.DataFrame, lo: date, hi: date, capital: float
+) -> pl.DataFrame:
+    """Research equity over [lo, hi], anchored so that research_equity[lo] == capital.
+
+    The live log's row for ``lo`` is a mark taken BEFORE that session's
+    trades — on a clock's first day the book is all cash and earned
+    nothing on ``lo``. The research replay, warm from its two-year run-in,
+    did earn ``lo``'s return. Compounding from ``lo`` inclusive charged the
+    live book for a day it was never invested (found 2026-09-12: 0.73pp of
+    a reported -1.09% first-week divergence was that single day)."""
+    window = daily.filter(pl.col("trade_date").is_between(lo, hi)).sort("trade_date")
+    growth = (1.0 + pl.col("net_return")).cum_prod()
+    return window.select(
+        "trade_date",
+        (growth / growth.first() * capital).alias("research_equity"),
+    )
+
+
 def main() -> int:
     settings = load_settings()
     log_path = settings.reports_dir / "paper" / "paper_log.jsonl"
@@ -91,14 +110,7 @@ def main() -> int:
         constructor=constructor,
         report=ConstraintReport(),
     )
-    research = (
-        res.daily.filter(pl.col("trade_date").is_between(lo, hi))
-        .sort("trade_date")
-        .select(
-            "trade_date",
-            ((1.0 + pl.col("net_return")).cum_prod() * capital).alias("research_equity"),
-        )
-    )
+    research = anchored_research_equity(res.daily, lo, hi, capital)
     joined = live.join(research, on="trade_date", how="inner").with_columns(
         (pl.col("equity") / pl.col("research_equity") - 1).alias("divergence")
     )
@@ -107,7 +119,8 @@ def main() -> int:
     # rows. Missed sessions shrink the row count while the book stays
     # invested, and dividing by rows inflated divergence/week (found
     # 2026-09-07: 16 rows over a 33-session window read as 3.2 weeks).
-    weeks = max(len(cal.sessions(lo, hi)) / 5.0, 1.0)
+    # Returns are earned AFTER the anchor session, so lo itself is excluded.
+    weeks = max((len(cal.sessions(lo, hi)) - 1) / 5.0, 1.0)
     weekly_div = abs(last_div) / weeks
 
     summary = {
