@@ -28,22 +28,26 @@ from artha.portfolio.construct import ConstraintReport, production_constructor
 DIVERGENCE_TOL_WEEKLY = 0.0025  # 25 bps/week unattributed = investigate
 
 
-def anchored_research_equity(
-    daily: pl.DataFrame, lo: date, hi: date, capital: float
-) -> pl.DataFrame:
-    """Research equity over [lo, hi], anchored so that research_equity[lo] == capital.
+def research_premarks(daily: pl.DataFrame, lo: date, hi: date, capital: float) -> pl.DataFrame:
+    """Research equity marked exactly the way the live log marks its book.
 
-    The live log's row for ``lo`` is a mark taken BEFORE that session's
-    trades — on a clock's first day the book is all cash and earned
-    nothing on ``lo``. The research replay, warm from its two-year run-in,
-    did earn ``lo``'s return. Compounding from ``lo`` inclusive charged the
-    live book for a day it was never invested (found 2026-09-12: 0.73pp of
-    a reported -1.09% first-week divergence was that single day)."""
+    A live row for session t is cash + positions at t's close, taken BEFORE
+    t's orders: it includes t's return and excludes the costs of t's trades,
+    which land in the next row. The backtester's net_return[t] already has
+    t's costs deducted, so the comparable research mark is
+    E[t-1] * (1 + gross_return[t]), with E the post-cost equity.
+
+    ``daily`` must come from a replay whose book cold-starts at the first
+    live signal (``run_backtest(trade_from=...)``), so the research book is
+    empty before ``lo`` exactly as the live one was. Earlier versions set
+    the live book against a replay invested for two years: week one of a
+    restart then charged the live book 0.73pp for a day it held only cash,
+    plus the exposure ramp-in it had not yet made (found 2026-09-12)."""
     window = daily.filter(pl.col("trade_date").is_between(lo, hi)).sort("trade_date")
-    growth = (1.0 + pl.col("net_return")).cum_prod()
+    post_cost = (1.0 + pl.col("net_return")).cum_prod().shift(1, fill_value=1.0)
     return window.select(
         "trade_date",
-        (growth / growth.first() * capital).alias("research_equity"),
+        (post_cost * (1.0 + pl.col("gross_return")) * capital).alias("research_equity"),
     )
 
 
@@ -87,10 +91,12 @@ def main() -> int:
     lo = live["trade_date"].min()
     hi = live["trade_date"].max()
 
-    # research replay: the backtest needs a WARMUP before the live window
-    # (review finding 2026-07-20) — the min-var risk model needs >=63 obs
-    # per name and the tau partial adjustment needs a settled book, so the
-    # replay starts ~2y earlier and only the lo..hi segment is compared.
+    # research replay: DATA warms up ~2y before the live window (the min-var
+    # risk model needs >=63 obs per name, the cold-start vol 63 sessions),
+    # but the BOOK cold-starts at the first live signal, entered from cash on
+    # the same day the live book was (ADR 0015). A replay whose book had been
+    # invested for two years measured the live ramp-in, not the live
+    # implementation.
     warmup_start = date(lo.year - 2, lo.month, 1)
     panel = pl.read_parquet(settings.curated_dir / "panel.parquet")
     universe = pit_universe(panel)
@@ -102,6 +108,12 @@ def main() -> int:
     }
     capital = float(rows[0].get("equity", 2_500_000.0))
     constructor = production_constructor(capital, sector_map)
+    first = next(r for r in rows if not r.get("dry_run"))
+    first_signal = (
+        date.fromisoformat(first["signal_date"])
+        if "signal_date" in first
+        else cal.prev_trading_day(lo)
+    )
     res = run_backtest(
         px,
         momentum_12_1(panel).filter(pl.col("trade_date") >= warmup_start),
@@ -109,8 +121,9 @@ def main() -> int:
         capital=capital,
         constructor=constructor,
         report=ConstraintReport(),
+        trade_from=first_signal,
     )
-    research = anchored_research_equity(res.daily, lo, hi, capital)
+    research = research_premarks(res.daily, lo, hi, capital)
     joined = live.join(research, on="trade_date", how="inner").with_columns(
         (pl.col("equity") / pl.col("research_equity") - 1).alias("divergence")
     )

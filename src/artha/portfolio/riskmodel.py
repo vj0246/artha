@@ -10,6 +10,7 @@ disclosed heuristic that avoids a QP dependency and, per Jagannathan &
 Ma (2003), the clip itself acts as additional shrinkage.
 """
 
+import math
 from datetime import date
 
 import numpy as np
@@ -17,6 +18,30 @@ import polars as pl
 
 MIN_OBS = 63  # fall back to equal weight below one quarter of history
 RISK_WINDOW = 252
+# vol targeting uses the LARGER of a fast and slow estimate: the fast window
+# de-risks quickly in a crash, the slow one stops gross snapping back to 1.0
+# the moment 21 calm days pass (which left long-run vol far above target)
+VOL_LOOKBACK = 21
+VOL_LOOKBACK_SLOW = 63
+
+
+def trailing_returns(
+    panel: pl.DataFrame, names: list[str], asof: date, window: int
+) -> tuple[list[str], np.ndarray]:
+    """Daily returns of ``names`` over the last ``window`` sessions THROUGH
+    ``asof``: (names present, T x N array with NaN where a name did not print)."""
+    hist = (
+        panel.filter(pl.col("canon_symbol").is_in(names) & (pl.col("trade_date") <= asof))
+        .sort("canon_symbol", "trade_date")
+        .with_columns(
+            (pl.col("adj_close") / pl.col("adj_close").shift(1) - 1)
+            .over("canon_symbol")
+            .alias("ret")
+        )
+    )
+    wide = hist.pivot(on="canon_symbol", index="trade_date", values="ret").sort("trade_date")
+    present = [n for n in names if n in wide.columns]
+    return present, wide.tail(window).select(present).to_numpy()
 
 
 def risk_inputs(
@@ -30,21 +55,8 @@ def risk_inputs(
     the constructor gives them an equal-weight share while the covered
     subset still gets the risk model. (None, None) only when NO name has
     enough history."""
-    hist = (
-        panel.filter(pl.col("canon_symbol").is_in(names) & (pl.col("trade_date") <= asof))
-        .sort("canon_symbol", "trade_date")
-        .with_columns(
-            (pl.col("adj_close") / pl.col("adj_close").shift(1) - 1)
-            .over("canon_symbol")
-            .alias("ret")
-        )
-    )
-    wide = hist.pivot(on="canon_symbol", index="trade_date", values="ret").sort("trade_date")
-    present = [n for n in names if n in wide.columns]
-    if not present:
-        return None, None
-    arr = wide.tail(window).select(present).to_numpy()
-    if arr.shape[0] == 0:
+    present, arr = trailing_returns(panel, names, asof, window)
+    if not present or arr.shape[0] == 0:
         return None, None
     obs = (~np.isnan(arr)).sum(axis=0)
     covered = [n for n, o in zip(present, obs.tolist(), strict=True) if o >= MIN_OBS]
@@ -123,3 +135,55 @@ def min_var_weights(names: list[str], cov: np.ndarray) -> dict[str, float]:
     if total <= 0:
         return dict.fromkeys(names, 1.0 / n)
     return {s: float(w) / total for s, w in zip(names, raw, strict=True)}
+
+
+def _ann_vol(returns: list[float]) -> float:
+    n = len(returns)
+    mean = sum(returns) / n
+    var = sum((r - mean) ** 2 for r in returns) / (n - 1)
+    return math.sqrt(var * 252)
+
+
+def realized_book_vol(book_returns: list[float]) -> float | None:
+    """Annualized vol of a fully-invested book's daily returns: the input to
+    vol targeting, shared by the backtester and the live runbook so the two
+    cannot estimate it differently. max(21d, 63d) once 63 returns exist,
+    21d alone before that, None below 21."""
+    if len(book_returns) < VOL_LOOKBACK:
+        return None
+    vol = _ann_vol(book_returns[-VOL_LOOKBACK:])
+    if len(book_returns) >= VOL_LOOKBACK_SLOW:
+        vol = max(vol, _ann_vol(book_returns[-VOL_LOOKBACK_SLOW:]))
+    return vol
+
+
+def proforma_book_returns(returns: np.ndarray, weights: np.ndarray) -> list[float]:
+    """Daily returns ``weights`` would have earned, fully invested, over a
+    T x N window of daily returns. Each day renormalises over the names that
+    printed, so a missing price is never read as a zero return; days on
+    which nothing printed are dropped."""
+    mask = ~np.isnan(returns)
+    held = np.where(mask, weights, 0.0)
+    invested = held.sum(axis=1)
+    earned = (np.where(mask, returns, 0.0) * held).sum(axis=1)
+    ok = invested > 0
+    return [float(x) for x in earned[ok] / invested[ok]]
+
+
+def cold_start_vol(returns: np.ndarray) -> float | None:
+    """Vol-targeting input for a book with no history of its own (ADR 0015).
+
+    A fresh book — every paper-clock restart, and the first month of real
+    money — used to get None here and run at gross 1.0 until 21 days of its
+    own returns existed: 41pp over-invested on average against what the
+    research book held, and off by more than 10pp in 92% of weeks (401
+    weekly rebalances, 2019-2026). Instead: the EQUAL-weight pro-forma
+    returns of the current picks over the trailing window, through the same
+    estimator. Equal weights, not min-var: min-var is fitted on the very
+    window it would then be scored on, so it reads optimistically low (+4.9pp
+    over-invested); equal weight tracked the research book closer (5.4pp
+    mean error vs 6.5pp) and errs toward LESS exposure (-4.5pp)."""
+    if returns.ndim != 2 or returns.shape[1] == 0:
+        return None
+    weights = np.full(returns.shape[1], 1.0 / returns.shape[1])
+    return realized_book_vol(proforma_book_returns(returns, weights))

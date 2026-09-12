@@ -41,7 +41,13 @@ from artha.live.oms import Oms, plan_orders
 from artha.live.safety import KillSwitch, alert, drawdown_action, reconcile
 from artha.marketspec.nse import NSECostModel
 from artha.portfolio.construct import ConstraintReport, production_constructor
-from artha.portfolio.riskmodel import risk_inputs
+from artha.portfolio.riskmodel import (
+    VOL_LOOKBACK_SLOW,
+    cold_start_vol,
+    realized_book_vol,
+    risk_inputs,
+    trailing_returns,
+)
 
 
 def kite_ltp_override(quotes: dict[str, float], symbols: list[str]) -> str:
@@ -96,32 +102,22 @@ def read_live_log(log_path: Path) -> list[dict[str, Any]]:
     return [r for r in rows if not r.get("dry_run")]
 
 
-def trailing_book_vol(rows: list[dict[str, Any]]) -> float | None:
-    """Annualized trailing vol of the paper book's FULLY-INVESTED returns,
-    from the daily log (max of 21d and 63d windows, same convention as the
-    backtester). None until 22 sessions exist."""
-    eq = [(r["equity"], r["cash"]) for r in rows]
-    if len(eq) < 22:
-        return None
+def book_returns_from_log(rows: list[dict[str, Any]]) -> list[float]:
+    """The paper book's FULLY-INVESTED daily returns from the log, measured
+    the way the backtester measures them: each period's return divided by
+    the exposure HELD over it, i.e. the previous row's post-trade exposure.
+    Dividing by the current row's exposure (as before 2026-09-12) mixed in
+    that day's trades — a book that went from 49% to 74% invested read as
+    having earned on 74% over a day it held 49%."""
     from itertools import pairwise
 
     book: list[float] = []
-    for (e0, _), (e1, c1) in pairwise(eq):
-        exposure = (e1 - c1) / e1 if e1 > 0 else 0.0
-        if e0 > 0 and exposure > 0.05:
+    for prev, cur in pairwise(rows):
+        e0, c0, e1 = prev["equity"], prev["cash"], cur["equity"]
+        exposure = (e0 - c0) / e0 if e0 > 0 else 0.0
+        if exposure > 0.05:
             book.append((e1 / e0 - 1) / exposure)
-
-    def _vol(xs: list[float]) -> float:
-        n = len(xs)
-        m = sum(xs) / n
-        return (sum((x - m) ** 2 for x in xs) / (n - 1) * 252) ** 0.5
-
-    if len(book) < 21:
-        return None
-    vol = _vol(book[-21:])
-    if len(book) >= 63:
-        vol = max(vol, _vol(book[-63:]))
-    return vol
+    return book
 
 
 def main() -> int:
@@ -196,6 +192,8 @@ def main() -> int:
 
     report = None
     scheme_used = "hold"
+    vol_input: float | None = None
+    vol_source = "hold"
     if is_rebalance_day:
         master = pl.read_parquet(settings.curated_dir / "security_master.parquet")
         sector_map = {
@@ -229,10 +227,23 @@ def main() -> int:
             scheme_used = f"minvar_partial_{len(cov_in[0])}of{n_picks}"
         else:
             scheme_used = constructor.scheme
+        vol_input = realized_book_vol(book_returns_from_log(prior_rows))
+        vol_source = "book"
+        if vol_input is None:
+            # cold start (ADR 0015): too little history of its own, so size
+            # gross on what TODAY'S picks would have done over the trailing
+            # window — a fresh book is never run un-vol-targeted
+            _, window = trailing_returns(
+                universe, list(scored["canon_symbol"]), signal_date, VOL_LOOKBACK_SLOW
+            )
+            vol_input = cold_start_vol(window)
+            vol_source = "cold_start" if vol_input is not None else "none"
+            if vol_input is None:
+                alert("vol target unavailable: no return history for today's picks")
         targets = constructor.build(
             [(s, adv.get(s, 0.0)) for s in scored["canon_symbol"]],
             prior,
-            trailing_book_vol(prior_rows),
+            vol_input,
             creport,
             adv_map=adv,
             vols=vols_in,
@@ -295,6 +306,8 @@ def main() -> int:
         "quote_source": quote_source,
         "gross_scalar": gross_scalar,
         "scheme_used": scheme_used,
+        "vol_input": vol_input,  # annualised vol fed to the vol target
+        "vol_source": vol_source,  # book | cold_start | none | hold
     }
     live_dir.mkdir(parents=True, exist_ok=True)
     with (live_dir / "paper_log.jsonl").open("a", encoding="utf-8") as f:

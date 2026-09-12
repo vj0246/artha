@@ -133,3 +133,42 @@ def test_summarize_shapes() -> None:
     assert m["n_days"] == 4
     assert m["max_drawdown"] <= 0
     assert 0 < m["hit_rate"] <= 1
+
+
+def _alternating_panel(n_days: int) -> tuple[list[date], pl.DataFrame, pl.DataFrame]:
+    """Three names moving +3% / -3% on alternate days: ~48% annualised vol."""
+    days = weekdays_from(date(2024, 1, 1), n_days)
+    prices: dict[str, list[float]] = {}
+    for sym in ("A", "B", "C"):
+        p, series = 100.0, []
+        for i in range(n_days):
+            p *= 1.03 if i % 2 == 0 else 0.97
+            series.append(p)
+        prices[sym] = series
+    signal = pl.DataFrame(
+        [{"canon_symbol": s, "trade_date": d, "score": 1.0} for s in prices for d in days]
+    )
+    return days, mk_panel(prices, days), signal
+
+
+def test_trade_from_cold_starts_a_vol_targeted_book() -> None:
+    """ADR 0015: a book entered from cash is vol-targeted from its first
+    rebalance (it used to get realized_vol None and run at gross 1.0 for 21
+    days), and trade_from forces that first rebalance onto a non-grid day."""
+    from artha.portfolio.construct import Constructor
+
+    days, panel, signal = _alternating_panel(90)
+    start = days[42]  # a Wednesday: deliberately NOT a week-last day
+    res = run_backtest(
+        panel,
+        signal,
+        spec_for(days),
+        constructor=Constructor(top_n=3, position_cap=1.0),
+        trade_from=start,
+    )
+    assert res.rebalances["rebalance_date"].min() == start
+    before = res.daily.filter(pl.col("trade_date") <= start)
+    assert before["gross_return"].abs().sum() == 0.0  # nothing held before the entry
+    first = res.rebalances.row(0, named=True)
+    assert first["realized_vol"] == pytest.approx(0.03 * 252**0.5, rel=0.05)
+    assert first["gross_target"] == pytest.approx(0.135 / first["realized_vol"], rel=0.01)

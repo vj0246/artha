@@ -243,25 +243,24 @@ class TestHeartbeatB1Clock:
         assert mod.consecutive_streak(sessions, set(sessions)) == 3  # type: ignore[attr-defined]
 
 
-class TestWeeklyReviewAnchor:
-    """Regression (2026-09-12): the research replay was compounded from the
-    first live date INCLUSIVE, charging a cash-only live book for a day of
-    return it never earned — 0.73pp of the first week's -1.09% flag."""
+def _load_script(name: str) -> object:
+    import importlib.util
 
-    @staticmethod
-    def _review() -> object:
-        import importlib.util
+    spec = importlib.util.spec_from_file_location(name, Path(f"scripts/{name}.py"))
+    assert spec is not None
+    assert spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
 
-        spec = importlib.util.spec_from_file_location(
-            "run_weekly_review", Path("scripts/run_weekly_review.py")
-        )
-        assert spec is not None
-        assert spec.loader is not None
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-        return mod
 
-    def test_anchor_day_return_is_excluded(self) -> None:
+class TestWeeklyReviewPremarks:
+    """Research marks must be taken the way the live log takes them: at the
+    close, including that day's return, excluding that day's trade costs.
+    Regression (2026-09-12): a warm replay charged a cash-only live book
+    0.73pp for a day of return it never earned."""
+
+    def test_marks_include_the_days_return_but_not_its_costs(self) -> None:
         from datetime import date as _date
 
         import polars as pl
@@ -269,13 +268,29 @@ class TestWeeklyReviewAnchor:
         daily = pl.DataFrame(
             {
                 "trade_date": [_date(2026, 9, d) for d in (3, 4, 7, 8)],
-                "net_return": [0.05, 0.10, 0.02, -0.01],
+                # 09-03: no book yet. 09-04: entry day, cost only.
+                # 09-07: +5%. 09-08: +2% with a 1% rebalance cost.
+                "gross_return": [0.0, 0.0, 0.05, 0.02],
+                "net_return": [0.0, -0.01, 0.05, 0.01],
             }
         )
-        fn = self._review().anchored_research_equity  # type: ignore[attr-defined]
+        fn = _load_script("run_weekly_review").research_premarks  # type: ignore[attr-defined]
         out = fn(daily, _date(2026, 9, 4), _date(2026, 9, 8), 100.0)
-        equity = out["research_equity"].to_list()
-        assert out.height == 3  # the day before lo is outside the window
-        assert equity[0] == pytest.approx(100.0)  # lo's +10% is NOT credited
-        assert equity[1] == pytest.approx(102.0)
-        assert equity[2] == pytest.approx(102.0 * 0.99)
+        marks = out["research_equity"].to_list()
+        assert out.height == 3
+        assert marks[0] == pytest.approx(100.0)  # entry day, marked pre-trade
+        assert marks[1] == pytest.approx(100.0 * 0.99 * 1.05)  # entry cost now paid
+        assert marks[2] == pytest.approx(100.0 * 0.99 * 1.05 * 1.02)  # today's cost not yet
+
+
+class TestLiveBookReturns:
+    def test_return_is_scaled_by_the_exposure_actually_held(self) -> None:
+        """Regression (2026-09-12): the live log divided each day's return by
+        the exposure AFTER that day's trades instead of the exposure held."""
+        rows = [
+            {"equity": 100.0, "cash": 50.0},  # 50% invested after this day's trades
+            {"equity": 110.0, "cash": 30.0},  # +10% at book level, then bought more
+        ]
+        fn = _load_script("run_paper_day").book_returns_from_log  # type: ignore[attr-defined]
+        # the +10% was earned on the 50% held since the previous close
+        assert fn(rows) == [pytest.approx(0.20)]

@@ -27,23 +27,18 @@ import polars as pl
 
 from artha.marketspec.base import MarketSpec
 from artha.portfolio.construct import ConstraintReport, Constructor
-from artha.portfolio.riskmodel import MIN_OBS, ewma_cov, lw_shrunk_cov
+from artha.portfolio.riskmodel import (
+    MIN_OBS,
+    VOL_LOOKBACK_SLOW,
+    cold_start_vol,
+    ewma_cov,
+    lw_shrunk_cov,
+    realized_book_vol,
+)
 
 RISK_WINDOW = 252  # trailing daily returns feeding the C2 risk model
 
 ADV_WINDOW = 21
-# vol targeting uses the LARGER of a fast and slow estimate: the fast window
-# de-risks quickly in a crash, the slow one stops gross snapping back to 1.0
-# the moment 21 calm days pass (which left long-run vol far above target)
-VOL_LOOKBACK = 21
-VOL_LOOKBACK_SLOW = 63
-
-
-def _ann_vol(returns: list[float]) -> float:
-    n = len(returns)
-    mean = sum(returns) / n
-    var = sum((r - mean) ** 2 for r in returns) / (n - 1)
-    return math.sqrt(var * 252)
 
 
 @dataclass(frozen=True)
@@ -68,6 +63,7 @@ def run_backtest(
     report: ConstraintReport | None = None,
     gross_gate: dict[date, float] | None = None,
     cov_estimator: str = "lw",
+    trade_from: date | None = None,
 ) -> BacktestResult:
     """``panel`` needs canon_symbol, trade_date, adj_close, traded_value,
     in_universe. ``signal``: (canon_symbol, trade_date, score). ``capital``
@@ -80,7 +76,10 @@ def run_backtest(
     dates to a multiplier applied to the built target's gross — values must
     be computed from information knowable at that date's close.
     ``cov_estimator``: "lw" (Ledoit-Wolf on the flat window) or "ewma"
-    (RiskMetrics exponential weighting, Track E E1)."""
+    (RiskMetrics exponential weighting, Track E E1). ``trade_from`` (ADR 0015)
+    cold-starts the BOOK: no target is formed before that session, which is
+    itself forced onto the rebalance grid — the research twin of a fresh live
+    book, entered from cash on the same day with the same data history."""
     px = panel.select(
         "canon_symbol", "trade_date", "adj_close", "traded_value", "in_universe"
     ).sort("canon_symbol", "trade_date")
@@ -117,7 +116,7 @@ def run_backtest(
     wide_np = np.empty((0, 0))
     wide_row: dict[date, int] = {}
     wide_col: dict[str, int] = {}
-    if need_risk:
+    if constructor is not None:  # the risk model AND the cold-start vol target read it
         wide = px.pivot(on="canon_symbol", index="trade_date", values="ret").sort("trade_date")
         wide_row = {d: i for i, d in enumerate(wide["trade_date"].to_list())}
         wide_col = {s: i for i, s in enumerate(wide.columns[1:])}
@@ -134,6 +133,8 @@ def run_backtest(
     holding_rows: list[dict[str, object]] = []
     rebalance_rows: list[dict[str, object]] = []
     rebalance_set = set(rebalance_days)
+    if trade_from is not None:
+        rebalance_set = {d for d in rebalance_set if d >= trade_from} | {trade_from}
     cost_model = spec.cost_model
 
     for i, day in enumerate(all_days):
@@ -204,12 +205,16 @@ def run_backtest(
                     w = 1.0 / picks.height
                     target = dict.fromkeys(picks["canon_symbol"], w)
                 else:
-                    fast = book_returns[-VOL_LOOKBACK:]
-                    slow = book_returns[-VOL_LOOKBACK_SLOW:]
-                    if len(fast) >= VOL_LOOKBACK:
-                        realized = _ann_vol(fast)
-                        if len(slow) >= VOL_LOOKBACK_SLOW:
-                            realized = max(realized, _ann_vol(slow))
+                    realized = realized_book_vol(book_returns)
+                    if realized is None and day in wide_row:
+                        # cold start (ADR 0015): too little history of its own,
+                        # so size gross on what the current picks would have
+                        # done — a new book is never run un-vol-targeted
+                        r0 = wide_row[day]
+                        pick_cols = [wide_col[s] for s in picks["canon_symbol"]]
+                        realized = cold_start_vol(
+                            wide_np[max(0, r0 - VOL_LOOKBACK_SLOW + 1) : r0 + 1][:, pick_cols]
+                        )
                     vols_in: dict[str, float] | None = None
                     cov_in: tuple[list[str], np.ndarray] | None = None
                     if need_risk and day in wide_row:
