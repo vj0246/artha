@@ -72,8 +72,31 @@ def _rows(path: Any) -> list[dict[str, Any]]:
     return [json.loads(x) for x in p.read_text(encoding="utf-8").splitlines() if x.strip()]
 
 
+def check_crontab() -> dict[str, str]:
+    """The server twin of the Task Scheduler check: every job needs an
+    active (uncommented) crontab line calling scripts/server/artha_job.sh."""
+    try:
+        out = subprocess.run(["crontab", "-l"], capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.SubprocessError):
+        return dict.fromkeys(EXPECTED_TASKS, "unknown (crontab unavailable)")
+    active = [
+        line
+        for line in (out.stdout or "").splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+    return {
+        name: "Ready"
+        if any(f"artha_job.sh {name.removeprefix('artha-')}" in line for line in active)
+        else "MISSING"
+        for name in EXPECTED_TASKS
+    }
+
+
 def check_scheduled_tasks() -> dict[str, str]:
-    """Windows scheduled tasks that must exist and be enabled."""
+    """Scheduled jobs that must exist and be enabled: Windows Task Scheduler
+    on the laptop, the login user's crontab on the server."""
+    if sys.platform != "win32":
+        return check_crontab()
     states: dict[str, str] = {}
     for name in EXPECTED_TASKS:
         try:

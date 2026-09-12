@@ -1,0 +1,17 @@
+# Artha scheduled jobs. Installed at CUTOVER with `crontab scripts/server/crontab`
+# (never by setup_server.sh: the server must not trade until the data and the
+# paper book have moved over and the laptop's tasks are disabled).
+# Edit here and reinstall — never with `crontab -e`.
+# Times are IST: setup_server.sh sets the timezone to Asia/Kolkata and cron
+# runs on local time.
+SHELL=/bin/bash
+PATH=/usr/local/bin:/usr/bin:/bin
+
+# m  h  dom mon      dow  command
+0  19 *   *        *    /bin/bash $HOME/artha/scripts/server/artha_job.sh daily
+0  21 *   *        *    /bin/bash $HOME/artha/scripts/server/artha_job.sh heartbeat
+0  10 *   *        6    /bin/bash $HOME/artha/scripts/server/artha_job.sh weekly
+# First Sunday of the month, and of each quarter. cron ORs day-of-month with
+# day-of-week, so the "first seven days" test has to live in the command.
+0  10 *   *        0    [ "$(date +\%d)" -le 7 ] && /bin/bash $HOME/artha/scripts/server/artha_job.sh monthly
+0  14 *   1,4,7,10 0    [ "$(date +\%d)" -le 7 ] && /bin/bash $HOME/artha/scripts/server/artha_job.sh quarterly
