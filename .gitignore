@@ -37,6 +37,8 @@ logs/
 # before that. Untracking hides them going forward, not retroactively.
 /docs/
 /CLAUDE.md
+/site/README.md
+/.claudeignore
 
 # OS / editor
 .DS_Store

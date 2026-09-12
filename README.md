@@ -11,7 +11,7 @@ It runs by itself at 7pm every evening. It knows when it has been
 fooled. And the most valuable thing it produced is a list of things
 that *don't* work.
 
-11.7k lines of typed Python · 249 tests · `mypy --strict` · a look-ahead
+11.7k lines of typed Python · 261 tests · `mypy --strict` · a look-ahead
 suite and a backtest-vs-engine parity gate that both block CI.
 
 ---
@@ -200,7 +200,7 @@ live book.
 
 ```bash
 uv sync
-uv run pytest                               # 249 tests: unit, lookahead, parity
+uv run pytest                               # 261 tests: unit, lookahead, parity
 
 # rebuild the world from primary sources (hours, all resumable)
 uv run python scripts/backfill_bhavcopy.py 2010-01-01 <today>
